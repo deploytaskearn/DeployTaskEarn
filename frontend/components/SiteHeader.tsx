@@ -27,7 +27,7 @@ export function SiteHeader() {
       style={{ background: "rgba(15, 28, 23, 0.92)", borderBottom: "1px solid rgba(245,242,234,0.1)" }}
     >
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/taskearn-mark.svg" alt="" aria-hidden="true" style={{ height: 36, width: 36 }} />
           <span className="font-display text-xl tracking-tight" style={{ color: "var(--color-surface)" }}>

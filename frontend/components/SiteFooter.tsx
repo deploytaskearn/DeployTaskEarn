@@ -11,7 +11,7 @@ export function SiteFooter() {
     <footer style={{ borderTop: "1px solid rgba(245,242,234,0.1)", background: "var(--color-bg)" }}>
       <div className="max-w-6xl mx-auto px-5 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
         <div>
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 flex items-center gap-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/taskearn-mark.svg" alt="" aria-hidden="true" style={{ height: 28, width: 28 }} />
             <span className="font-display text-lg" style={{ color: "var(--color-surface)" }}>
