@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import api from "@/lib/api";
+import api, { uploadUrl } from "@/lib/api";
 
 interface SiteSettings {
   site_name?: string;
@@ -18,6 +18,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     api.get("/cms/settings").then((r) => {
       const s: SiteSettings = r.data;
+      if (s.site_logo && !s.site_logo.startsWith("http")) {
+        s.site_logo = uploadUrl(s.site_logo) ?? s.site_logo;
+      }
       setSettings(s);
 
       // Apply color CSS vars
