@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       if (user.role === "ADMIN") {
-        localStorage.removeItem("taskearn_token");
+        logout();
         setError("Invalid credentials. Please check your email and password.");
         return;
       }
