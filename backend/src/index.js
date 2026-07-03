@@ -116,7 +116,7 @@ async function runMigrations() {
     ];
     for (const [k, v] of defaultSettings) {
       await pool.query(
-        `INSERT INTO "SiteSetting" (id, key, value, "updatedAt") VALUES (gen_random_uuid(), $1, $2, now()) ON CONFLICT (key) DO NOTHING`,
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ($1, $2, now()) ON CONFLICT (key) DO NOTHING`,
         [k, v]
       );
     }
