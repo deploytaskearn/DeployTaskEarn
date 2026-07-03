@@ -34,3 +34,6 @@ backend/uploads/*.webp
 
 # Keep SVG logos in git
 !backend/uploads/*.svg
+
+# User-uploaded proofs and deposit screenshots
+backend/src/uploads/
