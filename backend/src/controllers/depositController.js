@@ -37,7 +37,7 @@ async function createDeposit(req, res) {
         (id, "userId", method, amount, "senderAccountNo", "transactionId", "screenshotUrl", status, "createdAt")
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'PENDING', now())
        RETURNING *`,
-      [req.user.id, data.method, data.amount, data.senderAccountNo || null, data.transactionId, screenshotUrl]
+      [req.user.id, data.method, data.amount, data.senderAccountNo || null, data.transactionId || null, screenshotUrl]
     );
 
     res.status(201).json(result.rows[0]);
