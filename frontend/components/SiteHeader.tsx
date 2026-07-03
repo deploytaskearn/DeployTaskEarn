@@ -17,7 +17,7 @@ const NAV_LINKS = [
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
-  const { site_name, site_logo } = useSiteSettings();
+  const { site_name } = useSiteSettings();
 
   const siteName = site_name || "TaskEarn";
 
@@ -27,16 +27,12 @@ export function SiteHeader() {
       style={{ background: "rgba(15, 28, 23, 0.92)", borderBottom: "1px solid rgba(245,242,234,0.1)" }}
     >
       <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center">
-          {site_logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={site_logo} alt={siteName} style={{ height: 48, width: "auto", maxWidth: 220, objectFit: "contain" }} />
-          ) : (
-            <span className="flex items-center gap-2 font-display text-xl tracking-tight" style={{ color: "var(--color-surface)" }}>
-              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold" style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>₨</span>
-              {siteName}
-            </span>
-          )}
+        <Link href="/" className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/taskearn-mark.svg" alt="" aria-hidden="true" style={{ height: 36, width: 36 }} />
+          <span className="font-display text-xl tracking-tight" style={{ color: "var(--color-surface)" }}>
+            Task<span style={{ color: "var(--color-accent)" }}>Earn</span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">
