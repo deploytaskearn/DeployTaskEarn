@@ -155,6 +155,53 @@ async function createTask(req, res) {
   }
 }
 
+async function bulkCreateTasks(req, res) {
+  const items = req.body;
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ error: 'Send an array of tasks' });
+  if (items.length > 100)
+    return res.status(400).json({ error: 'Max 100 tasks per bulk request' });
+
+  const results = { created: 0, failed: [] };
+
+  for (let i = 0; i < items.length; i++) {
+    try {
+      const data = taskSchema.parse(items[i]);
+      let categoryId = data.categoryId || null;
+      if (!categoryId && data.categoryName?.trim()) {
+        const name = data.categoryName.trim();
+        const existing = await pool.query('SELECT id FROM "TaskCategory" WHERE LOWER(name) = LOWER($1) LIMIT 1', [name]);
+        if (existing.rows.length > 0) {
+          categoryId = existing.rows[0].id;
+        } else {
+          const created = await pool.query(
+            'INSERT INTO "TaskCategory" (id, name, slug, "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, now(), now()) RETURNING id',
+            [name, name.toLowerCase().replace(/\s+/g, '-')]
+          );
+          categoryId = created.rows[0].id;
+        }
+      }
+      await pool.query(
+        `INSERT INTO "Task"
+          (id, title, description, instructions, "categoryId", source, "cpaNetworkName", "cpaOfferId",
+           "externalUrl", "rewardAmount", "requiresProof", "maxCompletions", "expiresAt", "planTier", status, "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ACTIVE', now(), now())`,
+        [
+          data.title, data.description, data.instructions || null, categoryId,
+          data.source, data.cpaNetworkName || null, data.cpaOfferId || null, data.externalUrl || null,
+          data.rewardAmount, data.requiresProof, data.maxCompletions || null, data.expiresAt || null,
+          data.planTier,
+        ]
+      );
+      results.created++;
+    } catch (err) {
+      results.failed.push({ index: i, error: err.name === 'ZodError' ? 'Validation failed' : err.message });
+    }
+  }
+
+  res.status(201).json(results);
+}
+
 async function updateTask(req, res) {
   try {
     const { id } = req.params;
@@ -285,6 +332,7 @@ module.exports = {
   updateUserStatus,
   adjustUserBalance,
   createTask,
+  bulkCreateTasks,
   updateTask,
   deleteTask,
   listAllTasksAdmin,

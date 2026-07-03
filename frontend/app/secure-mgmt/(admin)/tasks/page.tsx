@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Task, TaskCategory, Plan } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, Layers } from "lucide-react";
 
 export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   function load() {
     setLoading(true);
@@ -38,13 +39,22 @@ export default function AdminTasksPage() {
     <div>
       <div className="flex items-start justify-between mb-8">
         <AdminPageHeader title="Tasks" subtitle="Create manual tasks or register CPA network offers." />
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium shrink-0"
-          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-        >
-          <Plus size={15} /> New task
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowBulk(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
+            style={{ background: "rgba(255,255,255,0.07)", color: "var(--color-surface)", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            <Layers size={15} /> Bulk create
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+          >
+            <Plus size={15} /> New task
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -90,15 +100,224 @@ export default function AdminTasksPage() {
         <CreateTaskModal
           categories={categories}
           onClose={() => setShowForm(false)}
-          onCreated={() => {
-            setShowForm(false);
-            load();
-          }}
+          onCreated={() => { setShowForm(false); load(); }}
+        />
+      )}
+
+      {showBulk && (
+        <BulkCreateModal
+          onClose={() => setShowBulk(false)}
+          onCreated={() => { setShowBulk(false); load(); }}
         />
       )}
     </div>
   );
 }
+
+// ─── Bulk Create Modal ───────────────────────────────────────────────────────
+
+type BulkRow = {
+  title: string;
+  description: string;
+  instructions: string;
+  categoryName: string;
+  rewardAmount: string;
+  requiresProof: boolean;
+};
+
+function emptyRow(): BulkRow {
+  return { title: "", description: "", instructions: "", categoryName: "", rewardAmount: "", requiresProof: true };
+}
+
+function BulkCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [rows, setRows] = useState<BulkRow[]>([emptyRow(), emptyRow(), emptyRow()]);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ created: number; failed: { index: number; error: string }[] } | null>(null);
+  const [error, setError] = useState("");
+
+  function updateRow(i: number, field: keyof BulkRow, value: string | boolean) {
+    setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, emptyRow()]);
+  }
+
+  function removeRow(i: number) {
+    setRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const valid = rows.filter((r) => r.title.trim() && r.description.trim() && r.rewardAmount);
+    if (valid.length === 0) { setError("Add at least one complete task."); return; }
+    setError("");
+    setSubmitting(true);
+    try {
+      const payload = valid.map((r) => ({
+        title: r.title.trim(),
+        description: r.description.trim(),
+        instructions: r.instructions.trim() || undefined,
+        categoryName: r.categoryName.trim() || undefined,
+        rewardAmount: parseFloat(r.rewardAmount),
+        requiresProof: r.requiresProof,
+        source: "MANUAL",
+      }));
+      const res = await api.post("/admin/tasks/bulk", payload);
+      setResult(res.data);
+      if (res.data.failed.length === 0) {
+        setTimeout(onCreated, 1200);
+      }
+    } catch {
+      setError("Bulk create failed. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const inputStyle = {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "var(--color-surface)",
+    outline: "none",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(10,15,13,0.9)" }} onClick={onClose}>
+      <div
+        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-sm"
+        style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div>
+            <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>Bulk create tasks</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-muted)" }}>Fill rows below — empty rows are skipped automatically.</p>
+          </div>
+          <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="p-6">
+            {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
+
+            {result && (
+              <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: result.failed.length ? "rgba(232,99,58,0.12)" : "rgba(0,200,117,0.1)", color: result.failed.length ? "var(--color-alert)" : "var(--color-accent)" }}>
+                ✓ {result.created} task{result.created !== 1 ? "s" : ""} created
+                {result.failed.length > 0 && ` · ${result.failed.length} failed (rows: ${result.failed.map(f => f.index + 1).join(", ")})`}
+              </div>
+            )}
+
+            {/* Column headers */}
+            <div className="grid gap-2 mb-2 text-xs uppercase tracking-wide px-1" style={{ gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1fr auto", color: "var(--color-muted)" }}>
+              <span>Title <span style={{ color: "var(--color-alert)" }}>*</span></span>
+              <span>Description <span style={{ color: "var(--color-alert)" }}>*</span></span>
+              <span>Instructions</span>
+              <span>Category</span>
+              <span>Reward ₨ <span style={{ color: "var(--color-alert)" }}>*</span></span>
+              <span>Proof</span>
+            </div>
+
+            {/* Rows */}
+            <div className="flex flex-col gap-2">
+              {rows.map((row, i) => (
+                <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1fr auto auto" }}>
+                  <input
+                    placeholder="Task title"
+                    value={row.title}
+                    onChange={(e) => updateRow(i, "title", e.target.value)}
+                    className="px-3 py-2 rounded-sm text-sm"
+                    style={inputStyle}
+                  />
+                  <input
+                    placeholder="Short description"
+                    value={row.description}
+                    onChange={(e) => updateRow(i, "description", e.target.value)}
+                    className="px-3 py-2 rounded-sm text-sm"
+                    style={inputStyle}
+                  />
+                  <input
+                    placeholder="Step-by-step (optional)"
+                    value={row.instructions}
+                    onChange={(e) => updateRow(i, "instructions", e.target.value)}
+                    className="px-3 py-2 rounded-sm text-sm"
+                    style={inputStyle}
+                  />
+                  <input
+                    placeholder="e.g. Social"
+                    value={row.categoryName}
+                    onChange={(e) => updateRow(i, "categoryName", e.target.value)}
+                    className="px-3 py-2 rounded-sm text-sm"
+                    style={inputStyle}
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={row.rewardAmount}
+                    onChange={(e) => updateRow(i, "rewardAmount", e.target.value)}
+                    className="px-3 py-2 rounded-sm text-sm"
+                    style={inputStyle}
+                  />
+                  <label className="flex items-center justify-center" title="Require proof">
+                    <input
+                      type="checkbox"
+                      checked={row.requiresProof}
+                      onChange={(e) => updateRow(i, "requiresProof", e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    disabled={rows.length <= 1}
+                    className="p-1.5 rounded-sm disabled:opacity-30"
+                    style={{ color: "var(--color-alert)" }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addRow}
+              className="mt-3 flex items-center gap-1.5 text-sm px-3 py-2 rounded-sm"
+              style={{ color: "var(--color-accent)", border: "1px dashed rgba(0,200,117,0.3)" }}
+            >
+              <Plus size={14} /> Add row
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+              {rows.filter(r => r.title.trim() && r.description.trim() && r.rewardAmount).length} of {rows.length} rows ready
+            </span>
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-sm text-sm" style={{ color: "var(--color-muted)" }}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2.5 rounded-sm text-sm font-medium disabled:opacity-60"
+                style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+              >
+                {submitting ? "Creating…" : `Create ${rows.filter(r => r.title.trim() && r.description.trim() && r.rewardAmount).length} tasks`}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Single Create Modal ─────────────────────────────────────────────────────
 
 function CreateTaskModal({
   categories,

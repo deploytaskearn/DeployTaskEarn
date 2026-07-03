@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 
 // All routes here require admin auth
@@ -14,6 +15,7 @@ router.post('/users/:id/adjust-balance', adminController.adjustUserBalance);
 
 router.get('/tasks', adminController.listAllTasksAdmin);
 router.post('/tasks', adminController.createTask);
+router.post('/tasks/bulk', adminController.bulkCreateTasks);
 router.patch('/tasks/:id', adminController.updateTask);
 router.delete('/tasks/:id', adminController.deleteTask);
 
