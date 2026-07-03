@@ -104,6 +104,9 @@ async function runMigrations() {
     )`,
     `CREATE INDEX IF NOT EXISTS "UserPlan_userId_idx" ON "UserPlan" ("userId")`,
     `CREATE INDEX IF NOT EXISTS "UserPlan_planId_idx" ON "UserPlan" ("planId")`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "maxUsers" INTEGER`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "currentUsers" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "dailyEarning" DECIMAL(10,2)`,
   ];
   for (const stmt of patches) {
     try {

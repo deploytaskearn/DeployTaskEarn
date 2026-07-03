@@ -108,6 +108,9 @@ export interface Plan {
   price: string;
   durationDays: number;
   maxEarnings?: string | null;
+  dailyEarning?: string | null;
+  maxUsers?: number | null;
+  currentUsers?: number;
   features: string[];
   isPopular: boolean;
   isActive: boolean;

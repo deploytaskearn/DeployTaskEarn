@@ -8,7 +8,7 @@ import api from "@/lib/api";
 
 const EMPTY: Partial<Plan> & { features: string[]; price: string } = {
   name: "", description: "", price: "", durationDays: 30, maxEarnings: "",
-  features: [], isPopular: false, isActive: true, sortOrder: 0,
+  dailyEarning: "", maxUsers: "", features: [], isPopular: false, isActive: true, sortOrder: 0,
 };
 
 export default function AdminPlansPage() {
@@ -60,6 +60,8 @@ export default function AdminPlansPage() {
         ...form,
         price: parseFloat(String(form.price)),
         maxEarnings: form.maxEarnings ? parseFloat(String(form.maxEarnings)) : null,
+        dailyEarning: (form as {dailyEarning?: string}).dailyEarning ? parseFloat(String((form as {dailyEarning?: string}).dailyEarning)) : null,
+        maxUsers: (form as {maxUsers?: string}).maxUsers ? parseInt(String((form as {maxUsers?: string}).maxUsers)) : null,
         durationDays: Number(form.durationDays),
         sortOrder: Number(form.sortOrder),
       };
@@ -99,7 +101,9 @@ export default function AdminPlansPage() {
               { label: "Plan name", key: "name", type: "text" },
               { label: "Price (₨)", key: "price", type: "number" },
               { label: "Duration (days)", key: "durationDays", type: "number" },
+              { label: "Daily earning (₨/day)", key: "dailyEarning", type: "number" },
               { label: "Max earnings (₨, optional)", key: "maxEarnings", type: "number" },
+              { label: "Max users (limited offer, optional)", key: "maxUsers", type: "number" },
               { label: "Sort order", key: "sortOrder", type: "number" },
             ].map((f) => (
               <div key={f.key}>

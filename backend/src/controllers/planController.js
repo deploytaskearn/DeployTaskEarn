@@ -8,6 +8,8 @@ const planSchema = z.object({
   price: z.number().positive(),
   durationDays: z.number().int().positive().default(30),
   maxEarnings: z.number().positive().optional().nullable(),
+  dailyEarning: z.number().positive().optional().nullable(),
+  maxUsers: z.number().int().positive().optional().nullable(),
   features: z.array(z.string()).default([]),
   isPopular: z.boolean().default(false),
   isActive: z.boolean().default(true),
@@ -43,11 +45,11 @@ async function createPlan(req, res) {
   try {
     const data = planSchema.parse(req.body);
     const result = await pool.query(
-      `INSERT INTO "Plan" (name, description, price, "durationDays", "maxEarnings", features, "isPopular", "isActive", "sortOrder", "createdAt", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),now()) RETURNING *`,
+      `INSERT INTO "Plan" (name, description, price, "durationDays", "maxEarnings", "dailyEarning", "maxUsers", features, "isPopular", "isActive", "sortOrder", "createdAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),now()) RETURNING *`,
       [data.name, data.description || null, data.price, data.durationDays,
-       data.maxEarnings || null, JSON.stringify(data.features),
-       data.isPopular, data.isActive, data.sortOrder]
+       data.maxEarnings || null, data.dailyEarning || null, data.maxUsers || null,
+       JSON.stringify(data.features), data.isPopular, data.isActive, data.sortOrder]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -106,6 +108,11 @@ async function purchasePlan(req, res) {
     if (planRes.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
     const plan = planRes.rows[0];
 
+    // Check maxUsers limit
+    if (plan.maxUsers && plan.currentUsers >= plan.maxUsers) {
+      return res.status(422).json({ error: 'This plan is sold out. No more slots available.' });
+    }
+
     // Debit wallet
     await walletService.debit(userId, plan.price, 'PLAN_PURCHASE', planId, `Subscribed to ${plan.name}`);
 
@@ -118,6 +125,9 @@ async function purchasePlan(req, res) {
       [userId, planId, plan.price, endDate]
     );
     const userPlan = upResult.rows[0];
+
+    // Increment currentUsers
+    await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [planId]);
 
     // Pay referral bonus (5%) if user was referred
     const userRes = await pool.query(`SELECT "referredById" FROM "User" WHERE id = $1`, [userId]);
