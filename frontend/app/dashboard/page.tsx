@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
-import { DepositTab } from "@/components/dashboard/DepositTab";
-import { WithdrawTab } from "@/components/dashboard/WithdrawTab";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Wallet, X, Star, CheckCircle2, Lock } from "lucide-react";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Wallet, Star, CheckCircle2, Lock } from "lucide-react";
 import { ReferralStats, UserPlan, Plan } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -14,6 +13,7 @@ type Tab = "main" | "tasks" | "referral" | "plans" | "menu";
 
 export default function DashboardPage() {
   const { user, loading } = useRequireAuth();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("main");
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [myPlan, setMyPlan] = useState<UserPlan | null | undefined>(undefined);
@@ -21,8 +21,6 @@ export default function DashboardPage() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -126,8 +124,8 @@ export default function DashboardPage() {
           {/* Quick actions: Deposit, Withdraw, Tasks */}
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[
-              { icon: Banknote, label: "Deposit", sub: "Add funds\nto wallet", action: () => setDepositOpen(true) },
-              { icon: ArrowUpFromLine, label: "Withdraw", sub: "Withdraw your\nearnings", action: () => setWithdrawOpen(true) },
+              { icon: Banknote, label: "Deposit", sub: "Add funds\nto wallet", action: () => router.push("/dashboard/deposit") },
+              { icon: ArrowUpFromLine, label: "Withdraw", sub: "Withdraw your\nearnings", action: () => router.push("/dashboard/withdraw") },
               { icon: ListChecks, label: "Tasks", sub: "Complete tasks\n& earn", action: () => setTab("tasks") },
             ].map((item) => (
               <button key={item.label} onClick={item.action} className="rounded-3xl p-4 flex flex-col items-center text-center transition-all active:scale-95" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -342,46 +340,18 @@ export default function DashboardPage() {
         <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Menu</h2>
           <div className="flex flex-col gap-3">
-            <button onClick={() => setWithdrawOpen(true)} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
-              <ArrowUpFromLine size={18} style={{ color: "#00C875" }} />
-              <span className="text-sm font-medium">Withdraw earnings</span>
-            </button>
-            <button onClick={() => setDepositOpen(true)} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
+            <button onClick={() => router.push("/dashboard/deposit")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <Banknote size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Deposit funds</span>
             </button>
-            <Link href="/plans" className="flex items-center gap-3 px-5 py-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
-              <Trophy size={18} style={{ color: "#00C875" }} />
-              <span className="text-sm font-medium">View plans</span>
-            </Link>
+            <button onClick={() => router.push("/dashboard/withdraw")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
+              <ArrowUpFromLine size={18} style={{ color: "#00C875" }} />
+              <span className="text-sm font-medium">Withdraw earnings</span>
+            </button>
             <Link href="/" className="flex items-center gap-3 px-5 py-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <Home size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Go to main site</span>
             </Link>
-          </div>
-        </div>
-      )}
-
-      {/* ── Deposit/Withdraw modals ── */}
-      {depositOpen && (
-        <div className="fixed inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setDepositOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl p-5" style={{ background: "#0f2018", maxWidth: 480, margin: "0 auto" }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-lg" style={{ color: "#F5F2EA" }}>Deposit</h3>
-              <button onClick={() => setDepositOpen(false)}><X size={20} style={{ color: "rgba(245,242,234,0.5)" }} /></button>
-            </div>
-            <DepositTab />
-          </div>
-        </div>
-      )}
-      {withdrawOpen && (
-        <div className="fixed inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setWithdrawOpen(false)}>
-          <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl p-5" style={{ background: "#0f2018", maxWidth: 480, margin: "0 auto" }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-lg" style={{ color: "#F5F2EA" }}>Withdraw</h3>
-              <button onClick={() => setWithdrawOpen(false)}><X size={20} style={{ color: "rgba(245,242,234,0.5)" }} /></button>
-            </div>
-            <WithdrawTab />
           </div>
         </div>
       )}
