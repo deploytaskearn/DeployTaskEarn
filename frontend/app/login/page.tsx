@@ -22,7 +22,8 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       if (user.role === "ADMIN") {
-        router.push("/secure-mgmt");
+        localStorage.removeItem("taskearn_token");
+        setError("Invalid credentials. Please check your email and password.");
         return;
       }
       router.push("/dashboard");
