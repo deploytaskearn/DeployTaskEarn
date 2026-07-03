@@ -69,25 +69,50 @@ async function runMigrations() {
     }
   }
 
-  // Run patch migration (Plan, UserPlan, planTier, new enum values)
-  try {
-    const patchSql = fs.readFileSync(path.join(__dirname, '../prisma/patch_migration.sql'), 'utf8');
-    // Run each DO block / statement separately so one failure doesn't block others
-    const statements = patchSql
-      .split(/;\s*\n/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
-    for (const stmt of statements) {
-      try {
-        await pool.query(stmt);
-      } catch (e) {
-        console.log('Patch stmt skipped:', e.message.split('\n')[0]);
-      }
+  // Patch migration — each step is independent
+  const patches = [
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'REFERRAL_PLAN_BONUS'`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'PLAN_PURCHASE'`,
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "planTier" INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS "Plan" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      description TEXT,
+      price DECIMAL(10,2) NOT NULL,
+      "durationDays" INTEGER NOT NULL DEFAULT 30,
+      "maxEarnings" DECIMAL(12,2),
+      features JSONB NOT NULL DEFAULT '[]',
+      "isPopular" BOOLEAN NOT NULL DEFAULT false,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `DO $$ BEGIN
+      CREATE TYPE "UserPlanStatus" AS ENUM ('ACTIVE','EXPIRED','CANCELLED');
+    EXCEPTION WHEN duplicate_object THEN null; END $$`,
+    `CREATE TABLE IF NOT EXISTS "UserPlan" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "planId" UUID NOT NULL REFERENCES "Plan"(id),
+      "amountPaid" DECIMAL(10,2) NOT NULL,
+      status "UserPlanStatus" NOT NULL DEFAULT 'ACTIVE',
+      "startDate" TIMESTAMP NOT NULL DEFAULT now(),
+      "endDate" TIMESTAMP NOT NULL,
+      "referralBonusPaid" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserPlan_userId_idx" ON "UserPlan" ("userId")`,
+    `CREATE INDEX IF NOT EXISTS "UserPlan_planId_idx" ON "UserPlan" ("planId")`,
+  ];
+  for (const stmt of patches) {
+    try {
+      await pool.query(stmt);
+    } catch (e) {
+      console.log('Patch skipped:', e.message.split('\n')[0]);
     }
-    console.log('Patch migration completed');
-  } catch (err) {
-    console.error('Patch migration error:', err.message);
   }
+  console.log('Patch migration completed');
 
   // Seed admin user if not exists
   try {
