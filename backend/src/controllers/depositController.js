@@ -4,7 +4,7 @@ const walletService = require('../services/walletService');
 
 const createDepositSchema = z.object({
   method: z.enum(['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER']),
-  amount: z.coerce.number().positive(),
+  amount: z.coerce.number().positive().max(9999999),
   senderAccountNo: z.string().optional(),
   transactionId: z.string().optional(),
 });

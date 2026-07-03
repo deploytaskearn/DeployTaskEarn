@@ -108,6 +108,8 @@ async function runMigrations() {
     `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "currentUsers" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "dailyEarning" DECIMAL(10,2)`,
     `ALTER TABLE "Deposit" ALTER COLUMN "transactionId" DROP NOT NULL`,
+    `ALTER TABLE "Deposit" ALTER COLUMN amount TYPE DECIMAL(14,2)`,
+    `ALTER TABLE "Withdrawal" ALTER COLUMN amount TYPE DECIMAL(14,2)`,
   ];
   for (const stmt of patches) {
     try {

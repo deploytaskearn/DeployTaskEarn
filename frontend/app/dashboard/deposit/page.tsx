@@ -55,6 +55,9 @@ export default function DepositPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) { setError("Screenshot is required"); return; }
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { setError("Please enter a valid amount."); return; }
+    if (amt > 9999999) { setError("Maximum deposit amount is ₨9,999,999."); return; }
     setError("");
     setSubmitting(true);
     try {
