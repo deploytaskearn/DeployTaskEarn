@@ -1,0 +1,304 @@
+// Prisma schema for TaskEarn platform
+// Run `npx prisma generate` and `npx prisma migrate dev` on a machine/server
+// that has network access to binaries.prisma.sh (this sandbox does not).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ──────────────────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum TaskSource {
+  MANUAL // created by admin directly
+  CPA_NETWORK // imported from an offerwall/CPA network
+}
+
+enum TaskStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DepositMethod {
+  EASYPAISA
+  JAZZCASH
+  BANK_TRANSFER
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WithdrawalMethod {
+  EASYPAISA
+  JAZZCASH
+  BANK_TRANSFER
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum LedgerType {
+  DEPOSIT
+  TASK_EARNING
+  REFERRAL_BONUS
+  WITHDRAWAL
+  ADMIN_ADJUSTMENT
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+// ──────────────────────────────────────────────────────────
+// USERS & AUTH
+// ──────────────────────────────────────────────────────────
+
+model User {
+  id                String     @id @default(uuid())
+  name              String
+  email             String     @unique
+  phone             String?
+  passwordHash      String
+  role              Role       @default(USER)
+  status            UserStatus @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  avatarUrl         String?
+
+  referralCode      String     @unique
+  referredById      String?
+  referredBy        User?      @relation("Referrals", fields: [referredById], references: [id])
+  referrals         User[]     @relation("Referrals")
+
+  wallet            Wallet?
+  submissions       TaskSubmission[]
+  deposits          Deposit[]
+  withdrawals       Withdrawal[]
+  ledgerEntries     LedgerEntry[]
+
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([referredById])
+}
+
+model Wallet {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  balance     Decimal  @default(0) @db.Decimal(12, 2)
+  currency    String   @default("PKR")
+  updatedAt   DateTime @updatedAt
+}
+
+// Append-only ledger: every wallet change is recorded here.
+// Wallet.balance is a cached sum for fast reads; ledger is the source of truth.
+model LedgerEntry {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  type        LedgerType
+  direction   LedgerDirection
+  amount      Decimal         @db.Decimal(12, 2)
+  balanceAfter Decimal        @db.Decimal(12, 2)
+  referenceId String?         // e.g. submissionId, depositId, withdrawalId
+  note        String?
+  createdAt   DateTime        @default(now())
+
+  @@index([userId])
+}
+
+// ──────────────────────────────────────────────────────────
+// TASKS
+// ──────────────────────────────────────────────────────────
+
+model TaskCategory {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  iconUrl     String?
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id              String       @id @default(uuid())
+  title           String
+  description     String
+  instructions    String?
+  categoryId      String?
+  category        TaskCategory? @relation(fields: [categoryId], references: [id])
+
+  source          TaskSource   @default(MANUAL)
+  cpaNetworkName  String?      // e.g. "OGAds" - only set when source = CPA_NETWORK
+  cpaOfferId      String?      // the network's own offer ID, for postback matching
+  externalUrl     String?      // link user is sent to (CPA offer link)
+
+  rewardAmount    Decimal      @db.Decimal(10, 2)
+  currency        String       @default("PKR")
+  requiresProof   Boolean      @default(true) // manual tasks usually need screenshot proof
+  maxCompletions  Int?         // null = unlimited
+  completedCount  Int          @default(0)
+
+  status          TaskStatus   @default(ACTIVE)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+
+  submissions     TaskSubmission[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([categoryId])
+  @@index([source, cpaOfferId])
+}
+
+model TaskSubmission {
+  id           String           @id @default(uuid())
+  taskId       String
+  task         Task             @relation(fields: [taskId], references: [id])
+  userId       String
+  user         User             @relation(fields: [userId], references: [id])
+
+  proofText    String?
+  proofFileUrl String?
+
+  status       SubmissionStatus @default(PENDING)
+  reviewedById String?
+  reviewNote   String?
+  rewardPaid   Decimal?         @db.Decimal(10, 2)
+
+  // Set automatically when a CPA network postback confirms completion
+  autoApproved Boolean          @default(false)
+
+  createdAt    DateTime         @default(now())
+  reviewedAt   DateTime?
+
+  @@index([taskId])
+  @@index([userId])
+  @@unique([taskId, userId]) // one submission per user per task
+}
+
+// ──────────────────────────────────────────────────────────
+// DEPOSITS (manual now, gateway-ready structure for later)
+// ──────────────────────────────────────────────────────────
+
+model PaymentMethodConfig {
+  id          String        @id @default(uuid())
+  method      DepositMethod @unique
+  isEnabled   Boolean       @default(true)
+  accountName String?
+  accountNumber String?
+  instructions String?
+  updatedAt   DateTime      @updatedAt
+}
+
+model Deposit {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  method          DepositMethod
+  amount          Decimal       @db.Decimal(10, 2)
+  senderAccountNo String?       // the number the user paid FROM
+  transactionId   String        // TrxID provided by user
+  screenshotUrl   String?
+
+  status          DepositStatus @default(PENDING)
+  reviewedById    String?
+  reviewNote      String?
+
+  createdAt       DateTime      @default(now())
+  reviewedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────
+// WITHDRAWALS
+// ──────────────────────────────────────────────────────────
+
+model Withdrawal {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  method          WithdrawalMethod
+  amount          Decimal           @db.Decimal(10, 2)
+  accountName     String
+  accountNumber   String
+
+  status          WithdrawalStatus  @default(PENDING)
+  reviewedById    String?
+  reviewNote      String?
+  paidAt          DateTime?
+
+  createdAt       DateTime          @default(now())
+  reviewedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────
+// CMS-LITE (admin-editable site content)
+// ──────────────────────────────────────────────────────────
+
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(uuid())
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String
+  coverImageUrl String?
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

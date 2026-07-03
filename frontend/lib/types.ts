@@ -1,0 +1,147 @@
+export type Role = "USER" | "ADMIN";
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: Role;
+  referralCode: string;
+  balance?: string;
+  currency?: string;
+  createdAt: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  instructions?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  source: "MANUAL" | "CPA_NETWORK";
+  externalUrl?: string | null;
+  rewardAmount: string;
+  currency: string;
+  requiresProof: boolean;
+  status: "ACTIVE" | "PAUSED" | "EXPIRED";
+  completedCount: number;
+  maxCompletions?: number | null;
+  alreadySubmitted?: boolean;
+  createdAt: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  taskId: string;
+  taskTitle?: string;
+  rewardAmount?: string;
+  proofText?: string | null;
+  proofFileUrl?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewNote?: string | null;
+  rewardPaid?: string | null;
+  createdAt: string;
+}
+
+export interface Deposit {
+  id: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  method: "EASYPAISA" | "JAZZCASH" | "BANK_TRANSFER";
+  amount: string;
+  senderAccountNo?: string | null;
+  transactionId: string;
+  screenshotUrl?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewNote?: string | null;
+  createdAt: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  method: "EASYPAISA" | "JAZZCASH" | "BANK_TRANSFER";
+  amount: string;
+  accountName: string;
+  accountNumber: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "PAID";
+  reviewNote?: string | null;
+  createdAt: string;
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  content: string;
+  coverImageUrl?: string | null;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  createdAt: string;
+}
+
+export interface PaymentMethodConfig {
+  id: string;
+  method: "EASYPAISA" | "JAZZCASH" | "BANK_TRANSFER";
+  isEnabled: boolean;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  instructions?: string | null;
+}
+
+export interface TaskCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: string;
+  durationDays: number;
+  maxEarnings?: string | null;
+  features: string[];
+  isPopular: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface UserPlan {
+  id: string;
+  userId: string;
+  planId: string;
+  planName: string;
+  amountPaid: string;
+  status: "ACTIVE" | "EXPIRED" | "CANCELLED";
+  referralBonusPaid: boolean;
+  startDate: string;
+  endDate?: string | null;
+  maxEarnings?: string | null;
+  durationDays: number;
+  features: string[];
+}
+
+export interface ReferralStats {
+  referralCode: string;
+  totalReferrals: number;
+  totalBonusEarned: number;
+}
+
+export interface DashboardStats {
+  totalUsers: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  activeTasks: number;
+  pendingTaskSubmissions: number;
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+}

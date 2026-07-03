@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Fraunces';
+  src: url('https://fonts.gstatic.com/s/fraunces/v31/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea8sczgkqxw.woff2') format('woff2');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── Default color tokens (overridden dynamically by ThemeProvider) ── */
+  --color-bg: #0A0F0D;
+  --color-bg2: #111A14;
+  --color-surface: #F5F2EA;
+  --color-surface-dim: #EAE6DA;
+  --color-accent: #00C875;
+  --color-accent-dim: #009E5C;
+  --color-accent-glow: rgba(0, 200, 117, 0.18);
+  --color-gold: #F4C842;
+  --color-gold-dim: #C9A52E;
+  --color-alert: #E8633A;
+  --color-muted: #8A8F87;
+  --color-ink: #0E1C15;
+  --color-hairline: rgba(245, 242, 234, 0.08);
+  --color-hairline-dark: rgba(20, 36, 29, 0.12);
+
+  /* ── Typography ── */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* ── Radii ── */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-surface);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Typography helpers ── */
+.font-display { font-family: var(--font-display); }
+
+.font-mono-tabular {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Premium gradient text ── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glass card ── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Glow button ── */
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px var(--color-accent-glow);
+}
+.btn-glow:active { transform: translateY(0); }
+
+/* ── Premium card hover ── */
+.premium-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.premium-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+  border-color: rgba(0, 200, 117, 0.25) !important;
+}
+
+/* ── Shine sweep on popular badge ── */
+@keyframes shine {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(250%) skewX(-15deg); }
+}
+.shine-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  animation: shine 2.5s ease infinite;
+}
+
+/* ── Passbook / ledger-tape motif ── */
+.passbook-edge { position: relative; }
+.passbook-edge::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(20, 36, 29, 0.18) 0, rgba(20, 36, 29, 0.18) 6px,
+    transparent 6px, transparent 12px
+  );
+}
+
+/* ── Ledger rows ── */
+.ledger-row { border-bottom: 1px solid rgba(20, 36, 29, 0.1); }
+.ledger-row:last-child { border-bottom: none; }
+
+/* ── Animated gradient background for hero ── */
+@keyframes bgShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animated-bg {
+  background: linear-gradient(135deg, var(--color-bg) 0%, #0D1F18 50%, var(--color-bg) 100%);
+  background-size: 200% 200%;
+  animation: bgShift 12s ease infinite;
+}
+
+/* ── Floating orbs ── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+/* ── Number ticker animation ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.5s ease forwards; }
+
+/* ── Scroll bar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ── Dark select/option ── */
+select, option {
+  background: #111A14 !important;
+  color: #F5F2EA !important;
+  border-color: rgba(255,255,255,0.12);
+}
+select:focus { outline: none; box-shadow: 0 0 0 2px rgba(0,200,117,0.3); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" fill="none" role="img" aria-label="TaskEarn">
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="#16c172"></rect>
+  <rect x="12" y="36" width="8" height="16" rx="3" fill="#0a3f28"></rect>
+  <rect x="26" y="28" width="8" height="24" rx="3" fill="#0a3f28"></rect>
+  <rect x="40" y="14" width="8" height="38" rx="3" fill="#06281a"></rect>
+  <path d="M14 30 L31 30 L48 11" stroke="#f2c14e" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+</svg>
