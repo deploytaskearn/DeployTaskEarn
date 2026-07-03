@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(email, password);
-      router.push(user.role === "ADMIN" ? "/admin" : "/dashboard");
+      router.push(user.role === "ADMIN" ? "/secure-mgmt" : "/dashboard");
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Login failed. Check your details and try again.";

@@ -1,21 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 72" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="72" viewBox="0 0 340 72" fill="none" role="img" aria-label="TaskEarn">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#00C875"/>
-      <stop offset="100%" stop-color="#009E5C"/>
-    </linearGradient>
+    
   </defs>
-  <rect width="72" height="72" rx="16" fill="url(#g)"/>
-  <rect x="14" y="38" width="9" height="18" rx="3" fill="white" opacity="0.7"/>
-  <rect x="28" y="28" width="9" height="28" rx="3" fill="white" opacity="0.85"/>
-  <rect x="42" y="16" width="9" height="40" rx="3" fill="white"/>
-  <path d="M15 34 L33 24 L50 14" stroke="#F4C842" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="50" cy="14" r="4" fill="#F4C842"/>
-  <text x="86" y="51"
-        font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
-        font-weight="800"
-        font-size="40"
-        letter-spacing="-1.5">
-    <tspan fill="#0E1C15">Task</tspan><tspan fill="#00C875">Earn</tspan>
-  </text>
+  <g transform="translate(0,4)">
+    <rect x="12" y="36" width="8" height="16" rx="3" fill="#bfe6d2"></rect>
+    <rect x="26" y="28" width="8" height="24" rx="3" fill="#5cc28d"></rect>
+    <rect x="40" y="14" width="8" height="38" rx="3" fill="#0fa05f"></rect>
+    <path d="M14 30 L31 30 L48 11" stroke="#e0a830" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  </g>
+  <text class="wm" x="76" y="50" fill="#0f1512">TaskEarn</text>
 </svg>

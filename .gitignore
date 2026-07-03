@@ -26,14 +26,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Uploads (large files — upload manually or use cloud storage)
-backend/uploads/*.png
-backend/uploads/*.jpg
-backend/uploads/*.jpeg
-backend/uploads/*.webp
-
-# Keep SVG logos in git
-!backend/uploads/*.svg
-
-# User-uploaded proofs and deposit screenshots
+# User-uploaded deposit/proof images only
 backend/src/uploads/
+

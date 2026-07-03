@@ -26,9 +26,9 @@ export default function AdminOverviewPage() {
   ];
 
   const pending = [
-    { label: "Pending task submissions", value: stats.pendingTaskSubmissions, href: "/admin/submissions" },
-    { label: "Pending deposits", value: stats.pendingDeposits, href: "/admin/deposits" },
-    { label: "Pending withdrawals", value: stats.pendingWithdrawals, href: "/admin/withdrawals" },
+    { label: "Pending task submissions", value: stats.pendingTaskSubmissions, href: "/secure-mgmt/submissions" },
+    { label: "Pending deposits", value: stats.pendingDeposits, href: "/secure-mgmt/deposits" },
+    { label: "Pending withdrawals", value: stats.pendingWithdrawals, href: "/secure-mgmt/withdrawals" },
   ];
 
   return (
