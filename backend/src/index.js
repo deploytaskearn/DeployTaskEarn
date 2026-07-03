@@ -108,6 +108,18 @@ async function runMigrations() {
         [m]
       );
     }
+
+    // Seed default site settings
+    const defaultSettings = [
+      ['site_name', 'TaskEarn'],
+      ['site_logo', '/uploads/taskearn-logo-dark.svg'],
+    ];
+    for (const [k, v] of defaultSettings) {
+      await pool.query(
+        `INSERT INTO "SiteSetting" (id, key, value, "updatedAt") VALUES (gen_random_uuid(), $1, $2, now()) ON CONFLICT (key) DO NOTHING`,
+        [k, v]
+      );
+    }
     console.log('Seed data ready');
   } catch (err) {
     console.error('Seed warning:', err.message);
