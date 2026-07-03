@@ -22,8 +22,7 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       if (user.role === "ADMIN") {
-        setError("Admin accounts must use the admin login.");
-        localStorage.removeItem("taskearn_token");
+        router.push("/secure-mgmt");
         return;
       }
       router.push("/dashboard");
