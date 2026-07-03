@@ -66,6 +66,51 @@ async function runMigrations() {
     } else {
       console.error('Migration warning:', err.message);
     }
+  }
+
+  // Seed admin user if not exists
+  try {
+    const existing = await pool.query('SELECT id FROM "User" WHERE email = $1', ['admin@taskearn.local']);
+    if (existing.rows.length === 0) {
+      const bcrypt = require('bcryptjs');
+      const hash = await bcrypt.hash('Admin@12345', 10);
+      const code = 'ADMIN' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const r = await pool.query(
+        `INSERT INTO "User" (id, name, email, "passwordHash", role, "referralCode", "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), 'Site Admin', 'admin@taskearn.local', $1, 'ADMIN', $2, now(), now()) RETURNING id`,
+        [hash, code]
+      );
+      await pool.query(
+        `INSERT INTO "Wallet" (id, "userId", balance, currency, "updatedAt") VALUES (gen_random_uuid(), $1, 0, 'PKR', now())`,
+        [r.rows[0].id]
+      );
+      console.log('Admin user created: admin@taskearn.local / Admin@12345');
+    }
+
+    // Seed categories
+    const cats = [
+      ['Surveys', 'surveys'], ['App Installs', 'app-installs'],
+      ['Social Media', 'social-media'], ['Sign-up Offers', 'sign-up-offers'],
+    ];
+    for (const [name, slug] of cats) {
+      await pool.query(
+        `INSERT INTO "TaskCategory" (id, name, slug, "createdAt") VALUES (gen_random_uuid(), $1, $2, now()) ON CONFLICT (slug) DO NOTHING`,
+        [name, slug]
+      );
+    }
+
+    // Seed payment methods
+    for (const m of ['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER']) {
+      await pool.query(
+        `INSERT INTO "PaymentMethodConfig" (id, method, "isEnabled", "accountName", "accountNumber", instructions, "updatedAt")
+         VALUES (gen_random_uuid(), $1, true, 'Admin Panel mein set karen', 'Admin Panel mein set karen', 'Screenshot upload karen.', now())
+         ON CONFLICT (method) DO NOTHING`,
+        [m]
+      );
+    }
+    console.log('Seed data ready');
+  } catch (err) {
+    console.error('Seed warning:', err.message);
   } finally {
     await pool.end();
   }
