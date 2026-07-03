@@ -6,6 +6,8 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
+const { Pool } = require('pg');
 
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes');
@@ -51,9 +53,29 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
+async function runMigrations() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+  try {
+    const sql = fs.readFileSync(path.join(__dirname, '../prisma/manual_migration.sql'), 'utf8');
+    await pool.query(sql);
+    console.log('Database migration completed');
+  } catch (err) {
+    if (err.message && err.message.includes('already exists')) {
+      console.log('Database tables already exist');
+    } else {
+      console.error('Migration warning:', err.message);
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Backend API running on http://localhost:${PORT}`);
+runMigrations().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Backend API running on http://localhost:${PORT}`);
+  });
 });
 
 module.exports = app;
