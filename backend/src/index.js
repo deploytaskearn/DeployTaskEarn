@@ -56,16 +56,37 @@ app.use((err, req, res, next) => {
 async function runMigrations() {
   if (!process.env.DATABASE_URL) return;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+  // Run base migration
   try {
     const sql = fs.readFileSync(path.join(__dirname, '../prisma/manual_migration.sql'), 'utf8');
     await pool.query(sql);
-    console.log('Database migration completed');
+    console.log('Base migration completed');
   } catch (err) {
     if (err.message && err.message.includes('already exists')) {
-      console.log('Database tables already exist');
+      console.log('Base tables already exist, skipping');
     } else {
-      console.error('Migration warning:', err.message);
+      console.error('Base migration warning:', err.message);
     }
+  }
+
+  // Run patch migration (Plan, UserPlan, planTier, new enum values)
+  try {
+    const patchSql = fs.readFileSync(path.join(__dirname, '../prisma/patch_migration.sql'), 'utf8');
+    // Run each DO block / statement separately so one failure doesn't block others
+    const statements = patchSql
+      .split(/;\s*\n/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+    for (const stmt of statements) {
+      try {
+        await pool.query(stmt);
+      } catch (e) {
+        console.log('Patch stmt skipped:', e.message.split('\n')[0]);
+      }
+    }
+    console.log('Patch migration completed');
+  } catch (err) {
+    console.error('Patch migration error:', err.message);
   }
 
   // Seed admin user if not exists
