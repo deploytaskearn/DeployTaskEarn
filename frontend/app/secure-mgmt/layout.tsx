@@ -32,7 +32,7 @@ const NAV = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useRequireAuth(true);
+  const { user, loading } = useRequireAuth(true, "/secure-mgmt/login");
   const { logout } = useAuth();
   const pathname = usePathname();
 

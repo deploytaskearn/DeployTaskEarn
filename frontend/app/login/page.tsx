@@ -21,7 +21,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(email, password);
-      router.push(user.role === "ADMIN" ? "/secure-mgmt" : "/dashboard");
+      if (user.role === "ADMIN") {
+        setError("Admin accounts must use the admin login.");
+        localStorage.removeItem("taskearn_token");
+        return;
+      }
+      router.push("/dashboard");
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Login failed. Check your details and try again.";

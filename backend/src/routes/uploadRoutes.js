@@ -30,7 +30,9 @@ const upload = multer({
 
 router.post('/logo', requireAuth, requireAdmin, upload.single('logo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+  const publicDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+  const base = publicDomain ? `https://${publicDomain}` : `${req.protocol}://${req.get('host')}`;
+  const url = `${base}/uploads/${req.file.filename}`;
   res.json({ url, filename: req.file.filename });
 });
 
