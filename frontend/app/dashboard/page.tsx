@@ -5,8 +5,8 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { DepositTab } from "@/components/dashboard/DepositTab";
 import { WithdrawTab } from "@/components/dashboard/WithdrawTab";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Wallet, X } from "lucide-react";
-import { ReferralStats, UserPlan } from "@/lib/types";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Wallet, X, Star, CheckCircle2, Lock } from "lucide-react";
+import { ReferralStats, UserPlan, Plan } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
 
@@ -17,6 +17,9 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("main");
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [myPlan, setMyPlan] = useState<UserPlan | null | undefined>(undefined);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -25,7 +28,24 @@ export default function DashboardPage() {
     if (!user) return;
     api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
+    api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
   }, [user]);
+
+  async function handlePurchase(planId: string) {
+    setPurchasing(planId);
+    setPurchaseMsg(null);
+    try {
+      await api.post("/plans/purchase", { planId });
+      setPurchaseMsg({ type: "ok", text: "Plan activated! Tasks are now unlocked." });
+      api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => {});
+      api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Purchase failed";
+      setPurchaseMsg({ type: "err", text: msg });
+    } finally {
+      setPurchasing(null);
+    }
+  }
 
   function copyReferral() {
     if (!referralStats && !user) return;
@@ -225,15 +245,93 @@ export default function DashboardPage() {
       {/* ── Plans tab ── */}
       {tab === "plans" && (
         <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
-          <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Plans</h2>
-          <Link href="/plans" className="block text-center py-3 rounded-2xl text-sm font-semibold mb-4" style={{ background: "#00C875", color: "#000" }}>
-            View all plans
-          </Link>
+          <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Plans</h2>
+
+          {/* Active plan banner */}
           {myPlan && (
-            <div className="rounded-3xl p-5" style={{ background: "rgba(0,200,117,0.08)", border: "1px solid rgba(0,200,117,0.2)" }}>
-              <div className="text-xs uppercase tracking-wide mb-1" style={{ color: "rgba(245,242,234,0.4)" }}>Your Active Plan</div>
-              <div className="font-semibold" style={{ color: "#F5F2EA" }}>{myPlan.planName}</div>
-              <div className="text-xs mt-1" style={{ color: "#00C875" }}>Active until {new Date(myPlan.endDate || "").toLocaleDateString()}</div>
+            <div className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-3" style={{ background: "rgba(0,200,117,0.1)", border: "1px solid rgba(0,200,117,0.25)" }}>
+              <Trophy size={16} style={{ color: "#00C875" }} />
+              <div className="min-w-0">
+                <div className="text-xs font-semibold" style={{ color: "#00C875" }}>Active: {myPlan.planName}</div>
+                <div className="text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>Until {new Date(myPlan.endDate || "").toLocaleDateString()}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Purchase message */}
+          {purchaseMsg && (
+            <div className="rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: purchaseMsg.type === "ok" ? "rgba(0,200,117,0.1)" : "rgba(232,99,58,0.1)", color: purchaseMsg.type === "ok" ? "#00C875" : "#E8633A", border: `1px solid ${purchaseMsg.type === "ok" ? "rgba(0,200,117,0.2)" : "rgba(232,99,58,0.2)"}` }}>
+              {purchaseMsg.text}
+            </div>
+          )}
+
+          {/* Plans list */}
+          {plans.length === 0 ? (
+            <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No plans available yet.</div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {plans.map((plan) => {
+                const price = parseFloat(plan.price as unknown as string);
+                const daily = plan.dailyEarning ? parseFloat(plan.dailyEarning as unknown as string) : null;
+                const maxU = plan.maxUsers ?? null;
+                const curU = plan.currentUsers ?? 0;
+                const isSoldOut = maxU ? curU >= maxU : false;
+                const spotsLeft = maxU ? maxU - curU : null;
+
+                return (
+                  <div key={plan.id} className="rounded-2xl p-5 relative" style={{ background: plan.isPopular ? "rgba(0,200,117,0.07)" : "rgba(255,255,255,0.04)", border: plan.isPopular ? "1px solid rgba(0,200,117,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+                    {plan.isPopular && (
+                      <div className="absolute top-4 right-4 flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "#00C875", color: "#000" }}>
+                        <Star size={9} fill="currentColor" /> Popular
+                      </div>
+                    )}
+
+                    <div className="text-xs uppercase tracking-wide mb-1 font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>{plan.durationDays} days</div>
+                    <div className="font-display text-xl mb-1" style={{ color: "#F5F2EA" }}>{plan.name}</div>
+                    <div className="font-mono-tabular text-2xl font-bold mb-2" style={{ color: "#00C875" }}>₨{price.toLocaleString()}</div>
+
+                    {daily && (
+                      <div className="text-xs mb-2 font-medium" style={{ color: "rgba(245,242,234,0.6)" }}>
+                        ₨{daily.toLocaleString()}/day · Total: ₨{(daily * plan.durationDays).toLocaleString()}
+                      </div>
+                    )}
+
+                    {maxU && !isSoldOut && spotsLeft !== null && (
+                      <div className="text-xs mb-3" style={{ color: spotsLeft <= maxU * 0.3 ? "#E8633A" : "rgba(245,242,234,0.45)" }}>
+                        {spotsLeft} of {maxU} spots left
+                      </div>
+                    )}
+
+                    {plan.features.length > 0 && (
+                      <ul className="flex flex-col gap-1.5 mb-4">
+                        {plan.features.slice(0, 3).map((f, i) => (
+                          <li key={i} className="flex items-center gap-2 text-xs" style={{ color: "rgba(245,242,234,0.65)" }}>
+                            <CheckCircle2 size={12} style={{ color: "#00C875" }} className="shrink-0" /> {f}
+                          </li>
+                        ))}
+                        {plan.features.length > 3 && (
+                          <li className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>+{plan.features.length - 3} more features</li>
+                        )}
+                      </ul>
+                    )}
+
+                    {isSoldOut ? (
+                      <div className="w-full py-3 rounded-xl text-sm font-semibold text-center flex items-center justify-center gap-2" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.35)" }}>
+                        <Lock size={13} /> Sold out
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handlePurchase(plan.id)}
+                        disabled={purchasing === plan.id}
+                        className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
+                        style={{ background: plan.isPopular ? "#00C875" : "rgba(255,255,255,0.09)", color: plan.isPopular ? "#000" : "#F5F2EA" }}
+                      >
+                        {purchasing === plan.id ? "Activating…" : "Activate plan"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
