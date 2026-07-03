@@ -13,11 +13,16 @@ interface AdminUserRow extends User {
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
-    api.get("/admin/users").then((res) => setUsers(res.data)).catch(() => {}).finally(() => setLoading(false));
+    setFetchError("");
+    api.get("/admin/users")
+      .then((res) => setUsers(res.data))
+      .catch((err) => setFetchError(err?.response?.data?.error || "Failed to load users. Try refreshing."))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -41,9 +46,13 @@ export default function AdminUsersPage() {
 
       {loading ? (
         <div style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>
+      ) : fetchError ? (
+        <div className="p-6 rounded-sm text-sm" style={{ background: "rgba(232,99,58,0.1)", color: "var(--color-alert)" }}>{fetchError}</div>
       ) : (
         <div className="rounded-sm overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-          {users.map((u) => (
+          {users.length === 0 ? (
+            <div className="p-10 text-center text-sm" style={{ color: "var(--color-muted)" }}>No users registered yet.</div>
+          ) : users.map((u) => (
             <div key={u.id} className="ledger-row flex items-center justify-between gap-3 px-5 py-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
@@ -90,6 +99,7 @@ export default function AdminUsersPage() {
           ))}
         </div>
       )}
+
     </div>
   );
 }
