@@ -6,7 +6,13 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Plan } from "@/lib/types";
 import api from "@/lib/api";
 
-const EMPTY: Partial<Plan> & { features: string[]; price: string } = {
+interface PlanForm {
+  name: string; description: string; price: string; durationDays: number;
+  maxEarnings: string; dailyEarning: string; maxUsers: string;
+  features: string[]; isPopular: boolean; isActive: boolean; sortOrder: number;
+}
+
+const EMPTY: PlanForm = {
   name: "", description: "", price: "", durationDays: 30, maxEarnings: "",
   dailyEarning: "", maxUsers: "", features: [], isPopular: false, isActive: true, sortOrder: 0,
 };
@@ -14,7 +20,7 @@ const EMPTY: Partial<Plan> & { features: string[]; price: string } = {
 export default function AdminPlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState<PlanForm>({ ...EMPTY });
   const [featInput, setFeatInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -37,7 +43,7 @@ export default function AdminPlansPage() {
 
   function startEdit(p: Plan) {
     setEditing(p.id);
-    setForm({ name: p.name, description: p.description || "", price: p.price, durationDays: p.durationDays, maxEarnings: p.maxEarnings || "", features: [...p.features], isPopular: p.isPopular, isActive: p.isActive, sortOrder: p.sortOrder });
+    setForm({ name: p.name, description: p.description || "", price: p.price, durationDays: p.durationDays, maxEarnings: p.maxEarnings || "", dailyEarning: p.dailyEarning ? String(p.dailyEarning) : "", maxUsers: p.maxUsers ? String(p.maxUsers) : "", features: [...p.features], isPopular: p.isPopular, isActive: p.isActive, sortOrder: p.sortOrder });
     setFeatInput("");
     setShowForm(true);
   }
@@ -60,8 +66,8 @@ export default function AdminPlansPage() {
         ...form,
         price: parseFloat(String(form.price)),
         maxEarnings: form.maxEarnings ? parseFloat(String(form.maxEarnings)) : null,
-        dailyEarning: (form as {dailyEarning?: string}).dailyEarning ? parseFloat(String((form as {dailyEarning?: string}).dailyEarning)) : null,
-        maxUsers: (form as {maxUsers?: string}).maxUsers ? parseInt(String((form as {maxUsers?: string}).maxUsers)) : null,
+        dailyEarning: form.dailyEarning ? parseFloat(form.dailyEarning) : null,
+        maxUsers: form.maxUsers ? parseInt(form.maxUsers) : null,
         durationDays: Number(form.durationDays),
         sortOrder: Number(form.sortOrder),
       };
