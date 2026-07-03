@@ -49,10 +49,10 @@ export default function DashboardPage() {
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#0A1A12", maxWidth: 480, margin: "0 auto", position: "relative" }}>
+    <div className="min-h-screen flex flex-col w-full" style={{ background: "#0A1A12" }}>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-5 pt-6 pb-2">
+      <div className="flex items-center justify-between px-5 pt-6 pb-2 w-full max-w-2xl mx-auto">
         <div className="flex items-center gap-2">
           <img src="/taskearn-mark.svg" alt="" style={{ width: 28, height: 28 }} />
           <span className="font-display text-lg" style={{ color: "#F5F2EA" }}>Task<span style={{ color: "#00C875" }}>Earn</span></span>
@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
       {/* ── Main tab ── */}
       {tab === "main" && (
-        <div className="flex-1 px-4 pb-28 overflow-y-auto">
+        <div className="flex-1 px-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
 
           {/* Wallet card */}
           <div className="mt-4 rounded-3xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d3d24 0%, #0a2a18 100%)", border: "1px solid rgba(0,200,117,0.2)" }}>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
 
       {/* ── Tasks tab ── */}
       {tab === "tasks" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto">
+        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Tasks</h2>
           <TasksTab />
         </div>
@@ -183,38 +183,48 @@ export default function DashboardPage() {
 
       {/* ── Referral tab ── */}
       {tab === "referral" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto">
+        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Referral</h2>
           <div className="rounded-3xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-sm font-semibold mb-1" style={{ color: "#F5F2EA" }}>Your referral link</div>
             <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.45)" }}>Share and earn 5% when friends buy a plan.</div>
-            <div className="flex gap-2 mb-3">
-              <div className="flex-1 px-3 py-2.5 rounded-xl text-xs font-mono truncate" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="min-w-0 flex gap-2 mb-4">
+              <div className="min-w-0 flex-1 px-3 py-2.5 rounded-xl text-xs font-mono overflow-hidden text-ellipsis whitespace-nowrap" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 {referralLink}
               </div>
-              <button onClick={copyReferral} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap" style={{ background: copied ? "rgba(0,200,117,0.15)" : "#00C875", color: copied ? "#00C875" : "#000" }}>
-                {copied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
+              <button onClick={copyReferral} className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold" style={{ background: copied ? "rgba(0,200,117,0.15)" : "#00C875", color: copied ? "#00C875" : "#000" }}>
+                {copied ? <Check size={13} /> : <Copy size={13} />}
+                {copied ? "Copied!" : "Copy"}
               </button>
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: "Total referrals", value: referralStats?.totalReferrals ?? "—" },
-              { label: "Bonus earned", value: referralStats ? `₨${referralStats.totalBonusEarned.toFixed(0)}` : "—" },
-              { label: "Bonus rate", value: "5%" },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div className="font-mono-tabular text-xl font-bold mb-1 gradient-text">{s.value}</div>
-                <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>{s.label}</div>
+            <div className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: "rgba(0,200,117,0.07)", border: "1px dashed rgba(0,200,117,0.25)" }}>
+              <span className="text-xs" style={{ color: "rgba(245,242,234,0.55)" }}>Referral code</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-sm" style={{ color: "#00C875" }}>{referralCode}</span>
+                <button onClick={copyReferral}>{copied ? <Check size={14} style={{ color: "#00C875" }} /> : <Copy size={14} style={{ color: "rgba(245,242,234,0.4)" }} />}</button>
               </div>
-            ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="font-mono-tabular text-2xl font-bold mb-1 gradient-text">{referralStats?.totalReferrals ?? "0"}</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Total referrals</div>
+            </div>
+            <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="font-mono-tabular text-2xl font-bold mb-1 gradient-text">₨{referralStats ? referralStats.totalBonusEarned.toFixed(0) : "0"}</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Bonus earned</div>
+            </div>
+          </div>
+          <div className="rounded-2xl px-5 py-3 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <span className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Bonus rate per plan purchase</span>
+            <span className="font-mono-tabular text-base font-bold gradient-text">5%</span>
           </div>
         </div>
       )}
 
       {/* ── Plans tab ── */}
       {tab === "plans" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto">
+        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Plans</h2>
           <Link href="/plans" className="block text-center py-3 rounded-2xl text-sm font-semibold mb-4" style={{ background: "#00C875", color: "#000" }}>
             View all plans
@@ -231,7 +241,7 @@ export default function DashboardPage() {
 
       {/* ── Menu tab ── */}
       {tab === "menu" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto">
+        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Menu</h2>
           <div className="flex flex-col gap-3">
             <button onClick={() => setWithdrawOpen(true)} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
@@ -279,8 +289,8 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bottom navigation ── */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] px-2 pb-4 pt-2 z-40" style={{ background: "linear-gradient(to top, #0A1A12 80%, transparent)" }}>
-        <div className="flex items-end justify-around rounded-3xl px-2 py-3" style={{ background: "rgba(15,32,24,0.95)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" }}>
+      <div className="fixed bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-40" style={{ background: "linear-gradient(to top, #0A1A12 85%, transparent)" }}>
+        <div className="flex items-end justify-around rounded-3xl px-2 py-3 max-w-2xl mx-auto" style={{ background: "rgba(15,32,24,0.95)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" }}>
           {[
             { id: "main" as Tab, icon: Home, label: "Main" },
             { id: "tasks" as Tab, icon: ListChecks, label: "Tasks" },
