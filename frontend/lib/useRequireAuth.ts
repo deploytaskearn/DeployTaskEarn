@@ -19,7 +19,7 @@ export function useRequireAuth(requireAdmin = false, loginPath = "/login") {
       return;
     }
     if (requireAdmin && user.role !== "ADMIN") {
-      router.replace("/dashboard");
+      router.replace(loginPath);
     }
   }, [user, loading, requireAdmin, loginPath, router]);
 
