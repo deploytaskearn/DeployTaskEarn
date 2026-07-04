@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import api, { uploadUrl } from "@/lib/api";
 import { Deposit } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Check, X, ZoomIn, ExternalLink } from "lucide-react";
+import { Check, X, ZoomIn, ExternalLink, ImageOff } from "lucide-react";
 
 const STATUS_FILTERS = ["PENDING", "APPROVED", "REJECTED", "ALL"] as const;
 
@@ -76,16 +76,7 @@ export default function AdminDepositsPage() {
                   {/* ── Screenshot panel ── */}
                   <div className="md:w-52 shrink-0" style={{ background: "rgba(0,0,0,0.2)", minHeight: 140 }}>
                     {imgUrl ? (
-                      <div className="relative w-full h-full min-h-[140px] cursor-pointer group" onClick={() => setLightbox(imgUrl)}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imgUrl} alt="deposit proof"
-                          className="w-full h-full object-cover"
-                          style={{ minHeight: 140, maxHeight: 200 }} />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ background: "rgba(0,0,0,0.5)" }}>
-                          <ZoomIn size={28} style={{ color: "#fff" }} />
-                        </div>
-                      </div>
+                      <ImgWithFallback imgUrl={imgUrl} onOpen={() => setLightbox(imgUrl)} />
                     ) : (
                       <div className="w-full min-h-[140px] flex flex-col items-center justify-center gap-2"
                         style={{ color: "rgba(245,242,234,0.2)" }}>
@@ -172,6 +163,7 @@ export default function AdminDepositsPage() {
       )}
 
       {/* ── Lightbox ── */}
+
       {lightbox && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: "rgba(0,0,0,0.9)" }}
@@ -192,6 +184,35 @@ export default function AdminDepositsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ImgWithFallback({ imgUrl, onOpen }: { imgUrl: string; onOpen: () => void }) {
+  const [err, setErr] = useState(false);
+  if (err) {
+    return (
+      <div className="w-full min-h-[140px] flex flex-col items-center justify-center gap-2 cursor-pointer"
+        style={{ color: "rgba(245,242,234,0.2)" }}>
+        <ImageOff size={28} />
+        <div className="text-xs text-center px-2">Image not available<br />(old upload)</div>
+      </div>
+    );
+  }
+  return (
+    <div className="relative w-full h-full min-h-[140px] cursor-pointer group" onClick={onOpen}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imgUrl}
+        alt="deposit proof"
+        className="w-full h-full object-cover"
+        style={{ minHeight: 140, maxHeight: 200 }}
+        onError={() => setErr(true)}
+      />
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ background: "rgba(0,0,0,0.5)" }}>
+        <ZoomIn size={28} style={{ color: "#fff" }} />
+      </div>
     </div>
   );
 }
