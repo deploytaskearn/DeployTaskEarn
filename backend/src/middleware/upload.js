@@ -5,7 +5,7 @@ const fs = require('fs');
 const MAX_SIZE_MB = parseFloat(process.env.MAX_UPLOAD_SIZE_MB || '5');
 
 function makeUploader(subfolder) {
-  const dest = path.join(__dirname, '..', 'uploads', subfolder);
+  const dest = path.join(__dirname, '..', '..', 'uploads', subfolder);
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
 
   const storage = multer.diskStorage({
