@@ -5,41 +5,52 @@ const walletService = require('../services/walletService');
 async function listTasks(req, res) {
   try {
     const { categoryId } = req.query;
-    const userId = req.user ? req.user.id : null;
+    const userId = req.user.id;
 
-    // Get user's active plan tier (0 = no plan)
-    let userPlanTier = 0;
-    if (userId) {
-      const planRes = await pool.query(
-        `SELECT p."sortOrder" FROM "UserPlan" up
-         JOIN "Plan" p ON p.id = up."planId"
-         WHERE up."userId" = $1 AND up.status = 'ACTIVE' AND up."endDate" > now()
-         ORDER BY p."sortOrder" DESC LIMIT 1`,
-        [userId]
-      );
-      if (planRes.rows.length > 0) userPlanTier = planRes.rows[0].sortOrder || 1;
-    }
+    // Get user's active plan IDs
+    const planRes = await pool.query(
+      `SELECT "planId" FROM "UserPlan" WHERE "userId" = $1 AND status = 'ACTIVE'`,
+      [userId]
+    );
+    const userPlanIds = planRes.rows.map((r) => r.planId);
 
+    // No active plan → no tasks
+    if (userPlanIds.length === 0) return res.json([]);
+
+    // Only return tasks from user's active plans + global tasks (not in any PlanTask)
     let query = `
+      WITH plan_info AS (
+        SELECT pt."taskId",
+          bool_or(pt."planId" = ANY($2)) as "userHasPlan",
+          MIN(p.name) as "planName",
+          MIN(p.id::text) as "planId"
+        FROM "PlanTask" pt
+        JOIN "Plan" p ON p.id = pt."planId"
+        GROUP BY pt."taskId"
+      )
       SELECT t.*, tc.name as "categoryName",
+        pi."userHasPlan",
+        pi."planName",
+        pi."planId" as "taskPlanId",
         EXISTS(
           SELECT 1 FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
         ) as "alreadySubmitted"
       FROM "Task" t
       LEFT JOIN "TaskCategory" tc ON tc.id = t."categoryId"
+      LEFT JOIN plan_info pi ON pi."taskId" = t.id
       WHERE t.status = 'ACTIVE'
         AND (t."expiresAt" IS NULL OR t."expiresAt" > now())
-        AND t."planTier" <= $2
+        AND (pi."userHasPlan" = true OR pi."taskId" IS NULL)
     `;
-    const params = [userId, userPlanTier];
+    const params = [userId, userPlanIds];
 
     if (categoryId) {
       params.push(categoryId);
       query += ` AND t."categoryId" = $${params.length}`;
     }
 
-    query += ' ORDER BY t."createdAt" DESC';
+    query += ` ORDER BY t."createdAt" DESC`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
