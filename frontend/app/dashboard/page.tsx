@@ -572,31 +572,25 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bottom navigation ── */}
-      <div className="fixed bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-40" style={{ background: "#0A1A12" }}>
-        <div className="flex items-end justify-around rounded-3xl px-2 py-3 max-w-2xl mx-auto" style={{ background: "#0f2018", border: "1px solid #1a2e22" }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)", zIndex: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", background: "#0f2018", borderTop: "1px solid #1a2e22", paddingTop: 8, paddingBottom: 10, maxWidth: 640, margin: "0 auto" }}>
           {[
             { id: "main" as Tab, icon: Home, label: "Main" },
             { id: "tasks" as Tab, icon: ListChecks, label: "Tasks" },
-            { id: "referral" as Tab, icon: Users, label: "Referral", center: true },
+            { id: "referral" as Tab, icon: Users, label: "Referral" },
             { id: "plans" as Tab, icon: Trophy, label: "Plans" },
             { id: "menu" as Tab, icon: Menu, label: "Menu" },
           ].map((item) => {
             const active = tab === item.id;
             const Icon = item.icon;
-            if (item.center) {
-              return (
-                <button key={item.id} onClick={() => setTab(item.id)} className="flex flex-col items-center -mt-6">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ background: active ? "#00C875" : "#0d2a1a", border: "3px solid #0A1A12" }}>
-                    <Icon size={24} style={{ color: active ? "#000" : "#00C875" }} />
-                  </div>
-                  <span className="text-xs mt-1.5 font-medium" style={{ color: active ? "#00C875" : "rgba(245,242,234,0.45)" }}>{item.label}</span>
-                </button>
-              );
-            }
+            const isCenter = item.id === "referral";
             return (
-              <button key={item.id} onClick={() => setTab(item.id)} className="flex flex-col items-center gap-1 px-3 py-1">
-                <Icon size={20} style={{ color: active ? "#00C875" : "rgba(245,242,234,0.35)" }} />
-                <span className="text-xs font-medium" style={{ color: active ? "#00C875" : "rgba(245,242,234,0.35)" }}>{item.label}</span>
+              <button key={item.id} onClick={() => setTab(item.id)}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 12px", background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: isCenter ? 44 : 28, height: isCenter ? 44 : 28, borderRadius: isCenter ? 22 : 8, background: isCenter ? (active ? "#00C875" : "#0d2a1a") : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={isCenter ? 22 : 20} style={{ color: active ? "#00C875" : "#4a6a5a" }} />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 500, color: active ? "#00C875" : "#4a6a5a" }}>{item.label}</span>
               </button>
             );
           })}
