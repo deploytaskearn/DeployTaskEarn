@@ -28,12 +28,16 @@ export interface Task {
   completedCount: number;
   maxCompletions?: number | null;
   alreadySubmitted?: boolean;
+  userHasPlan?: boolean | null;
+  planName?: string | null;
+  taskPlanId?: string | null;
   createdAt: string;
 }
 
 export interface TaskSubmission {
   id: string;
   taskId: string;
+  title?: string;
   taskTitle?: string;
   rewardAmount?: string;
   proofText?: string | null;
@@ -115,6 +119,8 @@ export interface Plan {
   isPopular: boolean;
   isActive: boolean;
   sortOrder: number;
+  logoUrl?: string | null;
+  dailyTaskLimit?: number | null;
   createdAt: string;
 }
 
@@ -137,6 +143,37 @@ export interface ReferralStats {
   referralCode: string;
   totalReferrals: number;
   totalBonusEarned: number;
+}
+
+export interface SpinSegment {
+  id: string;
+  label: string;
+  rewardAmount: string;
+  color: string;
+  sortOrder: number;
+}
+
+export interface SpinInfo {
+  segments: SpinSegment[];
+  canSpin: boolean;
+  lastReward: string | null;
+}
+
+export interface SpinResult {
+  winner: { id: string; label: string; rewardAmount: string };
+  winnerIndex: number;
+  totalSegments: number;
+}
+
+export interface RedeemCode {
+  id: string;
+  code: string;
+  rewardAmount: string;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface DashboardStats {

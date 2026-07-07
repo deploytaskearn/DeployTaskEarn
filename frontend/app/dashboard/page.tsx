@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, ShieldCheck, Gift, UserCheck, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft } from "lucide-react";
+import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -25,6 +26,7 @@ export default function DashboardPage() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showSpin, setShowSpin] = useState(false);
   // History
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("pending");
   const [histSubs, setHistSubs] = useState<TaskSubmission[]>([]);
@@ -185,6 +187,23 @@ export default function DashboardPage() {
                 <div className="text-xs whitespace-pre-line leading-snug" style={{ color: "rgba(245,242,234,0.45)" }}>{item.sub}</div>
               </button>
             ))}
+          </div>
+
+          {/* Lucky Wheel card */}
+          <div className="mt-4 rounded-3xl p-5 flex items-center gap-4"
+            style={{ background: "linear-gradient(135deg, #0d1f14 0%, #071b10 100%)", border: "1.5px solid rgba(0,200,117,0.2)", cursor: "pointer" }}
+            onClick={() => setShowSpin(true)}
+          >
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(0,200,117,0.12)", border: "1.5px solid rgba(0,200,117,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 24 }}>
+              🎡
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>Lucky Wheel</div>
+              <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)" }}>Spin daily to win up to Rs 5,000!</div>
+            </div>
+            <div style={{ padding: "8px 14px", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+              Spin!
+            </div>
           </div>
 
           {/* Referral card */}
@@ -575,6 +594,16 @@ export default function DashboardPage() {
       )}
 
       </div>{/* end scrollable content */}
+
+      {/* Lucky Wheel Modal */}
+      {showSpin && (
+        <SpinWheelModal
+          onClose={() => setShowSpin(false)}
+          onWin={() => {
+            api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
+          }}
+        />
+      )}
 
       {/* ── Bottom navigation ── */}
       <div style={{ flexShrink: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>

@@ -17,6 +17,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const cmsRoutes = require('./routes/cmsRoutes');
 const planRoutes = require('./routes/planRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const spinRoutes = require('./routes/spinRoutes');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/admin/upload', uploadRoutes);
+app.use('/api/spin', spinRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
@@ -110,6 +112,54 @@ async function runMigrations() {
     `ALTER TABLE "Deposit" ALTER COLUMN "transactionId" DROP NOT NULL`,
     `ALTER TABLE "Deposit" ALTER COLUMN amount TYPE DECIMAL(14,2)`,
     `ALTER TABLE "Withdrawal" ALTER COLUMN amount TYPE DECIMAL(14,2)`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "referralBonusRate" DECIMAL(5,2)`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "dailyTaskLimit" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS "PlanTask" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "planId" UUID NOT NULL REFERENCES "Plan"(id) ON DELETE CASCADE,
+      "taskId" UUID NOT NULL REFERENCES "Task"(id) ON DELETE CASCADE,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+      UNIQUE("planId","taskId")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "UserPlan_userId_planId_unique" ON "UserPlan"("userId","planId")`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'SPIN_REWARD'`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'REDEEM_CODE'`,
+    `CREATE TABLE IF NOT EXISTS "SpinSegment" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      label TEXT NOT NULL,
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      weight DECIMAL(6,2) NOT NULL DEFAULT 10,
+      color TEXT NOT NULL DEFAULT '#0d2a1a',
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS "UserSpin" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "segmentId" UUID REFERENCES "SpinSegment"(id),
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      "spunAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS "RedeemCode" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      code TEXT NOT NULL UNIQUE,
+      "rewardAmount" DECIMAL(10,2) NOT NULL,
+      "maxUses" INTEGER NOT NULL DEFAULT 1,
+      "usedCount" INTEGER NOT NULL DEFAULT 0,
+      "expiresAt" TIMESTAMP,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS "RedeemCodeUse" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "codeId" UUID NOT NULL REFERENCES "RedeemCode"(id),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "usedAt" TIMESTAMP NOT NULL DEFAULT now(),
+      UNIQUE("codeId","userId")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserSpin_userId_idx" ON "UserSpin"("userId")`,
   ];
   for (const stmt of patches) {
     try {
@@ -173,6 +223,93 @@ async function runMigrations() {
       );
     }
     console.log('Seed data ready');
+
+    // Seed 2 default tasks per plan
+    try {
+      const catRes = await pool.query(`SELECT id FROM "TaskCategory" WHERE slug = 'social-media' LIMIT 1`);
+      const catId = catRes.rows[0]?.id || null;
+
+      const defaultTasks = [
+        {
+          title: 'Follow us on Instagram',
+          description: 'Follow our official Instagram account and send a screenshot as proof.',
+          instructions: '1. Open Instagram\n2. Search for our account\n3. Follow the account\n4. Take a screenshot and submit as proof',
+          rewardAmount: 50,
+          externalUrl: null,
+        },
+        {
+          title: 'Share on WhatsApp Status',
+          description: 'Share your referral link on your WhatsApp Status and send a screenshot as proof.',
+          instructions: '1. Copy your referral link from the dashboard\n2. Open WhatsApp\n3. Post the link on your Status\n4. Take a screenshot and submit as proof',
+          rewardAmount: 30,
+          externalUrl: null,
+        },
+        {
+          title: 'Download Our App from Play Store',
+          description: 'Download and install our app from Google Play Store and send a screenshot as proof.',
+          instructions: '1. Click "Open Link" to go to Play Store\n2. Download and install the app\n3. Open the app\n4. Take a screenshot showing the app installed\n5. Submit the screenshot as proof',
+          rewardAmount: 80,
+          externalUrl: 'https://play.google.com/store',
+        },
+      ];
+
+      const taskIds = [];
+      for (const task of defaultTasks) {
+        const existing = await pool.query(`SELECT id FROM "Task" WHERE title = $1 LIMIT 1`, [task.title]);
+        let taskId;
+        if (existing.rows.length > 0) {
+          taskId = existing.rows[0].id;
+        } else {
+          const r = await pool.query(
+            `INSERT INTO "Task" (id, title, description, instructions, "categoryId", source, "externalUrl", "rewardAmount", "requiresProof", "planTier", status, "createdAt", "updatedAt")
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, 'MANUAL', $5, $6, true, 0, 'ACTIVE', now(), now()) RETURNING id`,
+            [task.title, task.description, task.instructions, catId, task.externalUrl, task.rewardAmount]
+          );
+          taskId = r.rows[0].id;
+        }
+        taskIds.push(taskId);
+      }
+
+      // Assign both tasks to every plan
+      const plansRes = await pool.query(`SELECT id FROM "Plan"`);
+      for (const plan of plansRes.rows) {
+        for (const taskId of taskIds) {
+          await pool.query(
+            `INSERT INTO "PlanTask" ("planId","taskId") VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+            [plan.id, taskId]
+          );
+        }
+      }
+      console.log('Default tasks seeded and assigned to all plans');
+    } catch (err) {
+      console.error('Task seed warning:', err.message);
+    }
+
+    // Seed default spin segments (only if none exist)
+    try {
+      const existing = await pool.query(`SELECT COUNT(*) FROM "SpinSegment"`);
+      if (parseInt(existing.rows[0].count) === 0) {
+        const defaultSegments = [
+          { label: 'Better Luck', rewardAmount: 0, weight: 33, color: '#071b10', sortOrder: 0 },
+          { label: 'Rs 10',       rewardAmount: 10, weight: 22, color: '#0d2a1a', sortOrder: 1 },
+          { label: 'Try Again',   rewardAmount: 0,  weight: 22, color: '#071b10', sortOrder: 2 },
+          { label: 'Rs 25',       rewardAmount: 25, weight: 10, color: '#0d2a1a', sortOrder: 3 },
+          { label: 'Sorry!',      rewardAmount: 0,  weight: 6,  color: '#071b10', sortOrder: 4 },
+          { label: 'Rs 100',      rewardAmount: 100, weight: 4, color: '#0d2a1a', sortOrder: 5 },
+          { label: 'Rs 500',      rewardAmount: 500, weight: 2, color: '#1a1000', sortOrder: 6 },
+          { label: 'Rs 5,000',    rewardAmount: 5000, weight: 1, color: '#140800', sortOrder: 7 },
+        ];
+        for (const s of defaultSegments) {
+          await pool.query(
+            `INSERT INTO "SpinSegment" (label,"rewardAmount",weight,color,"sortOrder") VALUES ($1,$2,$3,$4,$5)`,
+            [s.label, s.rewardAmount, s.weight, s.color, s.sortOrder]
+          );
+        }
+        console.log('Default spin segments seeded');
+      }
+    } catch (err) {
+      console.error('Spin segment seed warning:', err.message);
+    }
   } catch (err) {
     console.error('Seed warning:', err.message);
   } finally {
