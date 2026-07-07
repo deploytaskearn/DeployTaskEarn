@@ -86,9 +86,11 @@ export default function AdminTasksPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => setEditTask(t)} className="p-2 rounded-sm" style={{ color: "rgba(245,242,234,0.5)" }} title="Edit task">
-                      <Pencil size={15} />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => setEditTask(t)} title="Edit task"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: "rgba(0,200,117,0.12)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
+                      <Pencil size={13} /> Edit
                     </button>
                     <button onClick={() => setConfirmDeleteId(t.id)} className="p-2 rounded-sm" style={{ color: "var(--color-alert)" }} title="Delete task">
                       <Trash2 size={16} />
