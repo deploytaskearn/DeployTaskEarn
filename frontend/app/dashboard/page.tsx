@@ -96,10 +96,10 @@ export default function DashboardPage() {
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
   return (
-    <div className="min-h-screen w-full" style={{ background: "#0A1A12" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#0A1A12", overflow: "hidden" }}>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-5 pt-6 pb-2 w-full max-w-2xl mx-auto">
+      <div style={{ flexShrink: 0 }} className="flex items-center justify-between px-5 pt-5 pb-2 w-full max-w-2xl mx-auto">
         <div className="flex items-center gap-2">
           <img src="/taskearn-mark.svg" alt="" style={{ width: 28, height: 28 }} />
           <span className="font-display text-lg" style={{ color: "#F5F2EA" }}>Task<span style={{ color: "#00C875" }}>Earn</span></span>
@@ -109,9 +109,12 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* ── Scrollable content area ── */}
+      <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
+
       {/* ── Main tab ── */}
       {tab === "main" && (
-        <div className="px-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pb-6 w-full max-w-2xl mx-auto">
 
           {/* Wallet card */}
           <div className="mt-4 rounded-3xl p-6" style={{ background: "linear-gradient(135deg, #0d3d24 0%, #0a2a18 100%)", border: "1px solid rgba(0,200,117,0.2)" }}>
@@ -261,7 +264,7 @@ export default function DashboardPage() {
 
       {/* ── Tasks tab ── */}
       {tab === "tasks" && (
-        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Tasks</h2>
           <TasksTab />
         </div>
@@ -269,7 +272,7 @@ export default function DashboardPage() {
 
       {/* ── Referral tab ── */}
       {tab === "referral" && (
-        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Referral</h2>
           <div className="rounded-3xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-sm font-semibold mb-1" style={{ color: "#F5F2EA" }}>Your referral link</div>
@@ -310,7 +313,7 @@ export default function DashboardPage() {
 
       {/* ── Plans tab ── */}
       {tab === "plans" && (
-        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Plans</h2>
 
           {/* Active plan banner */}
@@ -410,7 +413,7 @@ export default function DashboardPage() {
 
       {/* ── Menu tab ── */}
       {tab === "menu" && (
-        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Menu</h2>
           <div className="flex flex-col gap-3">
             <button onClick={() => router.push("/dashboard/deposit")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
@@ -435,7 +438,7 @@ export default function DashboardPage() {
 
       {/* ── History tab ── */}
       {tab === "history" && (
-        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           {/* Header */}
           <div className="flex items-center gap-3 mb-5">
             <button onClick={() => setTab("main")} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
@@ -571,8 +574,10 @@ export default function DashboardPage() {
         </div>
       )}
 
+      </div>{/* end scrollable content */}
+
       {/* ── Bottom navigation ── */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)", zIndex: 40 }}>
+      <div style={{ flexShrink: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", background: "#0f2018", borderTop: "1px solid #1a2e22", paddingTop: 8, paddingBottom: 10, maxWidth: 640, margin: "0 auto" }}>
           {[
             { id: "main" as Tab, icon: Home, label: "Main" },
