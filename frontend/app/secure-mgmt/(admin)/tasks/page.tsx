@@ -2,59 +2,53 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { Task, TaskCategory, Plan } from "@/lib/types";
+import { Task } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X, Layers } from "lucide-react";
+import { Plus, Trash2, X, Check, Pencil } from "lucide-react";
 
 export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function load() {
     setLoading(true);
-    Promise.all([api.get("/admin/tasks"), api.get("/cms/categories")])
-      .then(([t, c]) => {
-        setTasks(t.data);
-        setCategories(c.data);
-      })
+    api.get("/admin/tasks")
+      .then((r) => setTasks(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching the list on mount is the correct pattern here
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
   async function deleteTask(id: string) {
-    if (!confirm("Delete this task? This cannot be undone.")) return;
-    await api.delete(`/admin/tasks/${id}`);
-    load();
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/tasks/${id}`);
+      setConfirmDeleteId(null);
+      load();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
     <div>
       <div className="flex items-start justify-between mb-8">
-        <AdminPageHeader title="Tasks" subtitle="Create manual tasks or register CPA network offers." />
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setShowBulk(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
-            style={{ background: "rgba(255,255,255,0.07)", color: "var(--color-surface)", border: "1px solid rgba(255,255,255,0.12)" }}
-          >
-            <Layers size={15} /> Bulk create
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-          >
-            <Plus size={15} /> New task
-          </button>
-        </div>
+        <AdminPageHeader title="Tasks" subtitle="Create social media tasks for users." />
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          <Plus size={15} /> New task
+        </button>
       </div>
 
       {loading ? (
@@ -67,29 +61,40 @@ export default function AdminTasksPage() {
             tasks.map((t) => (
               <div key={t.id} className="ledger-row flex items-center justify-between gap-3 px-5 py-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-sm font-medium" style={{ color: "var(--color-surface)" }}>{t.title}</span>
-                    <span className="text-xs uppercase px-2 py-0.5 rounded-full" style={{ background: "rgba(20,36,29,0.08)", color: "var(--color-muted)" }}>
-                      {t.source.replace("_", " ")}
-                    </span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full"
-                      style={{
-                        background: t.status === "ACTIVE" ? "rgba(63,168,118,0.1)" : "rgba(232,99,58,0.1)",
-                        color: t.status === "ACTIVE" ? "var(--color-accent-dim)" : "var(--color-alert)",
-                      }}
-                    >
+                    <span className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: t.status === "ACTIVE" ? "rgba(63,168,118,0.1)" : "rgba(232,99,58,0.1)", color: t.status === "ACTIVE" ? "var(--color-accent-dim)" : "var(--color-alert)" }}>
                       {t.status}
                     </span>
                   </div>
                   <div className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    ₨{parseFloat(t.rewardAmount).toFixed(2)} · {t.completedCount} completed
-                    {t.categoryName && <> · {t.categoryName}</>}
+                    ₨{parseFloat(t.rewardAmount).toFixed(2)} · Social Media
+                    {t.externalUrl && <> · <span style={{ color: "rgba(0,200,117,0.6)" }}>URL</span></>}
                   </div>
                 </div>
-                <button onClick={() => deleteTask(t.id)} className="p-2 rounded-sm shrink-0" style={{ color: "var(--color-alert)" }}>
-                  <Trash2 size={16} />
-                </button>
+
+                {confirmDeleteId === t.id ? (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => deleteTask(t.id)} disabled={deleting}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                      style={{ background: "rgba(232,99,58,0.9)", color: "#fff" }}>
+                      {deleting ? "…" : <><Check size={12} /> Yes</>}
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="p-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.07)" }}>
+                      <X size={13} style={{ color: "rgba(245,242,234,0.6)" }} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setEditTask(t)} className="p-2 rounded-sm" style={{ color: "rgba(245,242,234,0.5)" }} title="Edit task">
+                      <Pencil size={15} />
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(t.id)} className="p-2 rounded-sm" style={{ color: "var(--color-alert)" }} title="Delete task">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -97,376 +102,121 @@ export default function AdminTasksPage() {
       )}
 
       {showForm && (
-        <CreateTaskModal
-          categories={categories}
+        <TaskModal
           onClose={() => setShowForm(false)}
-          onCreated={() => { setShowForm(false); load(); }}
+          onSaved={() => { setShowForm(false); load(); }}
         />
       )}
 
-      {showBulk && (
-        <BulkCreateModal
-          onClose={() => setShowBulk(false)}
-          onCreated={() => { setShowBulk(false); load(); }}
+      {editTask && (
+        <TaskModal
+          task={editTask}
+          onClose={() => setEditTask(null)}
+          onSaved={() => { setEditTask(null); load(); }}
         />
       )}
     </div>
   );
 }
 
-// ─── Bulk Create Modal ───────────────────────────────────────────────────────
-
-type BulkRow = {
-  title: string;
-  description: string;
-  instructions: string;
-  categoryName: string;
-  rewardAmount: string;
-  requiresProof: boolean;
-};
-
-function emptyRow(): BulkRow {
-  return { title: "", description: "", instructions: "", categoryName: "", rewardAmount: "", requiresProof: true };
-}
-
-function BulkCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [rows, setRows] = useState<BulkRow[]>([emptyRow(), emptyRow(), emptyRow()]);
+function TaskModal({ task, onClose, onSaved }: { task?: Task; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!task;
+  const [form, setForm] = useState({
+    title: task?.title ?? "",
+    instructions: task?.instructions ?? "",
+    externalUrl: task?.externalUrl ?? "",
+    rewardAmount: task ? String(parseFloat(task.rewardAmount)) : "",
+  });
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ created: number; failed: { index: number; error: string }[] } | null>(null);
   const [error, setError] = useState("");
-
-  function updateRow(i: number, field: keyof BulkRow, value: string | boolean) {
-    setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
-  }
-
-  function removeRow(i: number) {
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const valid = rows.filter((r) => r.title.trim() && r.description.trim() && r.rewardAmount);
-    if (valid.length === 0) { setError("Add at least one complete task."); return; }
     setError("");
     setSubmitting(true);
     try {
-      const payload = valid.map((r) => ({
-        title: r.title.trim(),
-        description: r.description.trim(),
-        instructions: r.instructions.trim() || undefined,
-        categoryName: r.categoryName.trim() || undefined,
-        rewardAmount: parseFloat(r.rewardAmount),
-        requiresProof: r.requiresProof,
+      const title = form.title.trim();
+      const instructions = form.instructions.trim();
+      const url = form.externalUrl.trim();
+      const payload = {
+        title,
+        description: instructions.length >= 2 ? instructions : title,
+        instructions: instructions || undefined,
+        externalUrl: url || undefined,
+        rewardAmount: parseFloat(form.rewardAmount),
+        categoryName: "Social Media",
         source: "MANUAL",
-      }));
-      const res = await api.post("/admin/tasks/bulk", payload);
-      setResult(res.data);
-      if (res.data.failed.length === 0) {
-        setTimeout(onCreated, 1200);
+        requiresProof: true,
+      };
+      if (isEdit) {
+        await api.patch(`/admin/tasks/${task!.id}`, payload);
+      } else {
+        await api.post("/admin/tasks", payload);
       }
-    } catch {
-      setError("Bulk create failed. Try again.");
+      onSaved();
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || (isEdit ? "Failed to update task" : "Failed to create task"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  const inputStyle = {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
+  const inp = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
     color: "var(--color-surface)",
     outline: "none",
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(10,15,13,0.9)" }} onClick={onClose}>
-      <div
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-sm"
-        style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div>
-            <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>Bulk create tasks</h3>
-            <p className="text-xs mt-0.5" style={{ color: "var(--color-muted)" }}>Fill rows below — empty rows are skipped automatically.</p>
-          </div>
-          <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="p-6">
-            {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
-
-            {result && (
-              <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: result.failed.length ? "rgba(232,99,58,0.12)" : "rgba(0,200,117,0.1)", color: result.failed.length ? "var(--color-alert)" : "var(--color-accent)" }}>
-                ✓ {result.created} task{result.created !== 1 ? "s" : ""} created
-                {result.failed.length > 0 && ` · ${result.failed.length} failed (rows: ${result.failed.map(f => f.index + 1).join(", ")})`}
-              </div>
-            )}
-
-            {/* Column headers */}
-            <div className="grid gap-2 mb-2 text-xs uppercase tracking-wide px-1" style={{ gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1fr auto", color: "var(--color-muted)" }}>
-              <span>Title <span style={{ color: "var(--color-alert)" }}>*</span></span>
-              <span>Description <span style={{ color: "var(--color-alert)" }}>*</span></span>
-              <span>Instructions</span>
-              <span>Category</span>
-              <span>Reward ₨ <span style={{ color: "var(--color-alert)" }}>*</span></span>
-              <span>Proof</span>
-            </div>
-
-            {/* Rows */}
-            <div className="flex flex-col gap-2">
-              {rows.map((row, i) => (
-                <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1fr auto auto" }}>
-                  <input
-                    placeholder="Task title"
-                    value={row.title}
-                    onChange={(e) => updateRow(i, "title", e.target.value)}
-                    className="px-3 py-2 rounded-sm text-sm"
-                    style={inputStyle}
-                  />
-                  <input
-                    placeholder="Short description"
-                    value={row.description}
-                    onChange={(e) => updateRow(i, "description", e.target.value)}
-                    className="px-3 py-2 rounded-sm text-sm"
-                    style={inputStyle}
-                  />
-                  <input
-                    placeholder="Step-by-step (optional)"
-                    value={row.instructions}
-                    onChange={(e) => updateRow(i, "instructions", e.target.value)}
-                    className="px-3 py-2 rounded-sm text-sm"
-                    style={inputStyle}
-                  />
-                  <input
-                    placeholder="e.g. Social"
-                    value={row.categoryName}
-                    onChange={(e) => updateRow(i, "categoryName", e.target.value)}
-                    className="px-3 py-2 rounded-sm text-sm"
-                    style={inputStyle}
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={row.rewardAmount}
-                    onChange={(e) => updateRow(i, "rewardAmount", e.target.value)}
-                    className="px-3 py-2 rounded-sm text-sm"
-                    style={inputStyle}
-                  />
-                  <label className="flex items-center justify-center" title="Require proof">
-                    <input
-                      type="checkbox"
-                      checked={row.requiresProof}
-                      onChange={(e) => updateRow(i, "requiresProof", e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    disabled={rows.length <= 1}
-                    className="p-1.5 rounded-sm disabled:opacity-30"
-                    style={{ color: "var(--color-alert)" }}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={addRow}
-              className="mt-3 flex items-center gap-1.5 text-sm px-3 py-2 rounded-sm"
-              style={{ color: "var(--color-accent)", border: "1px dashed rgba(0,200,117,0.3)" }}
-            >
-              <Plus size={14} /> Add row
-            </button>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-            <span className="text-xs" style={{ color: "var(--color-muted)" }}>
-              {rows.filter(r => r.title.trim() && r.description.trim() && r.rewardAmount).length} of {rows.length} rows ready
-            </span>
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-sm text-sm" style={{ color: "var(--color-muted)" }}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-5 py-2.5 rounded-sm text-sm font-medium disabled:opacity-60"
-                style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-              >
-                {submitting ? "Creating…" : `Create ${rows.filter(r => r.title.trim() && r.description.trim() && r.rewardAmount).length} tasks`}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── Single Create Modal ─────────────────────────────────────────────────────
-
-function CreateTaskModal({
-  categories,
-  onClose,
-  onCreated,
-}: {
-  categories: TaskCategory[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    instructions: "",
-    categoryName: "",
-    source: "MANUAL" as "MANUAL" | "CPA_NETWORK",
-    cpaNetworkName: "",
-    cpaOfferId: "",
-    externalUrl: "",
-    rewardAmount: "",
-    requiresProof: true,
-    planTier: 0,
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.get("/plans/admin").then((r) => setPlans(r.data)).catch(() => {});
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      await api.post("/admin/tasks", {
-        ...form,
-        rewardAmount: parseFloat(form.rewardAmount),
-        categoryName: form.categoryName || undefined,
-        cpaNetworkName: form.source === "CPA_NETWORK" ? form.cpaNetworkName : undefined,
-        cpaOfferId: form.source === "CPA_NETWORK" ? form.cpaOfferId : undefined,
-        externalUrl: form.externalUrl || undefined,
-      });
-      onCreated();
-    } catch (err: unknown) {
-      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to create task");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(15,28,23,0.85)" }} onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 rounded-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,15,13,0.88)" }} onClick={onClose}>
+      <div className="w-full max-w-md p-6 rounded-sm" style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>New task</h3>
+          <div>
+            <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>{isEdit ? "Edit Task" : "New Task"}</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-muted)" }}>Category: Social Media</p>
+          </div>
           <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
         </div>
 
         {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex gap-2">
-            {(["MANUAL", "CPA_NETWORK"] as const).map((s) => (
-              <button
-                type="button"
-                key={s}
-                onClick={() => setForm({ ...form, source: s })}
-                className="flex-1 px-3 py-2 rounded-sm text-xs font-medium uppercase"
-                style={{
-                  background: form.source === s ? "var(--color-accent)" : "transparent",
-                  color: form.source === s ? "var(--color-bg)" : "var(--color-muted)",
-                  border: form.source === s ? "none" : "1px solid rgba(20,36,29,0.15)",
-                }}
-              >
-                {s.replace("_", " ")}
-              </button>
-            ))}
-          </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Task Name *</span>
+            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g. Follow us on Instagram"
+              className="px-3 py-2.5 rounded-sm text-sm" style={inp} />
+          </label>
 
-          <Field label="Title">
-            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="px-3 py-2.5 rounded-sm text-sm outline-none border" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-          </Field>
-          <Field label="Description">
-            <textarea required rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="px-3 py-2.5 rounded-sm text-sm outline-none border resize-none" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-          </Field>
-          <Field label="Instructions (shown to user)">
-            <textarea rows={2} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="px-3 py-2.5 rounded-sm text-sm outline-none border resize-none" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-          </Field>
-          <Field label="Category (type manually)">
-            <input
-              placeholder="e.g. Social Media, Surveys, App Install"
-              value={form.categoryName}
-              onChange={(e) => setForm({ ...form, categoryName: e.target.value })}
-              className="px-3 py-2.5 rounded-sm text-sm outline-none border"
-              style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }}
-            />
-          </Field>
-          <Field label="Reward amount (PKR)">
-            <input type="number" min="1" step="0.01" required value={form.rewardAmount} onChange={(e) => setForm({ ...form, rewardAmount: e.target.value })} className="px-3 py-2.5 rounded-sm text-sm outline-none border" style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-          </Field>
-          <Field label="Visible to">
-            <select value={form.planTier} onChange={(e) => setForm({ ...form, planTier: parseInt(e.target.value) })} className="px-3 py-2.5 rounded-sm text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-surface)" }}>
-              <option value={0}>Everyone (free users too)</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.sortOrder ?? 1}>{p.name} plan holders</option>
-              ))}
-            </select>
-          </Field>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Instructions</span>
+            <textarea rows={3} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+              placeholder="Step by step instructions for the user…"
+              className="px-3 py-2.5 rounded-sm text-sm resize-none" style={inp} />
+          </label>
 
-          {form.source === "CPA_NETWORK" ? (
-            <>
-              <Field label="CPA network name">
-                <input required value={form.cpaNetworkName} onChange={(e) => setForm({ ...form, cpaNetworkName: e.target.value })} placeholder="e.g. OGAds" className="px-3 py-2.5 rounded-sm text-sm outline-none border" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-              </Field>
-              <Field label="Network offer ID">
-                <input required value={form.cpaOfferId} onChange={(e) => setForm({ ...form, cpaOfferId: e.target.value })} placeholder="Used to match postback" className="px-3 py-2.5 rounded-sm text-sm outline-none border" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-              </Field>
-              <Field label="Offer URL">
-                <input type="url" required value={form.externalUrl} onChange={(e) => setForm({ ...form, externalUrl: e.target.value })} className="px-3 py-2.5 rounded-sm text-sm outline-none border" style={{ borderColor: "rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
-              </Field>
-            </>
-          ) : (
-            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--color-surface)" }}>
-              <input type="checkbox" checked={form.requiresProof} onChange={(e) => setForm({ ...form, requiresProof: e.target.checked })} />
-              Require proof submission
-            </label>
-          )}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>URL (optional)</span>
+            <input type="url" value={form.externalUrl} onChange={(e) => setForm({ ...form, externalUrl: e.target.value })}
+              placeholder="https://instagram.com/…"
+              className="px-3 py-2.5 rounded-sm text-sm" style={inp} />
+          </label>
 
-          <button
-            type="submit"
-            disabled={submitting}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Reward (PKR) *</span>
+            <input required type="number" min="1" step="0.01" value={form.rewardAmount} onChange={(e) => setForm({ ...form, rewardAmount: e.target.value })}
+              placeholder="e.g. 50"
+              className="px-3 py-2.5 rounded-sm text-sm" style={inp} />
+          </label>
+
+          <button type="submit" disabled={submitting}
             className="mt-1 px-4 py-3 rounded-sm text-sm font-medium disabled:opacity-60"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-          >
-            {submitting ? "Creating…" : "Create task"}
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
+            {submitting ? (isEdit ? "Saving…" : "Creating…") : (isEdit ? "Save Changes" : "Create Task")}
           </button>
         </form>
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>{label}</span>
-      {children}
-    </label>
   );
 }
