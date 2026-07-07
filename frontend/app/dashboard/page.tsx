@@ -4,30 +4,58 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Wallet, Star, CheckCircle2, Lock } from "lucide-react";
-import { ReferralStats, UserPlan, Plan } from "@/lib/types";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, ShieldCheck, Gift, UserCheck, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft } from "lucide-react";
+import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 
-type Tab = "main" | "tasks" | "referral" | "plans" | "menu";
+type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history";
+type HistoryFilter = "pending" | "withdraw" | "deposit";
 
 export default function DashboardPage() {
   const { user, loading } = useRequireAuth();
+  const { logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("main");
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [myPlan, setMyPlan] = useState<UserPlan | null | undefined>(undefined);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [myPlanIds, setMyPlanIds] = useState<string[]>([]);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // History
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("pending");
+  const [histSubs, setHistSubs] = useState<TaskSubmission[]>([]);
+  const [histDeposits, setHistDeposits] = useState<Deposit[]>([]);
+  const [histWithdrawals, setHistWithdrawals] = useState<Withdrawal[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
+    api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
   }, [user]);
+
+  function openHistory(filter: HistoryFilter) {
+    setHistoryFilter(filter);
+    setTab("history");
+    if (histSubs.length === 0 && histDeposits.length === 0 && histWithdrawals.length === 0) {
+      setHistLoading(true);
+      Promise.all([
+        api.get<TaskSubmission[]>("/tasks/my-submissions"),
+        api.get<Deposit[]>("/deposits/my"),
+        api.get<Withdrawal[]>("/withdrawals/my"),
+      ]).then(([s, d, w]) => {
+        setHistSubs(s.data);
+        setHistDeposits(d.data);
+        setHistWithdrawals(w.data);
+      }).catch(() => {}).finally(() => setHistLoading(false));
+    }
+  }
 
   async function handlePurchase(planId: string) {
     setPurchasing(planId);
@@ -37,6 +65,7 @@ export default function DashboardPage() {
       setPurchaseMsg({ type: "ok", text: "Plan activated! Tasks are now unlocked." });
       api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => {});
       api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
+      api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Purchase failed";
       setPurchaseMsg({ type: "err", text: msg });
@@ -67,7 +96,7 @@ export default function DashboardPage() {
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
   return (
-    <div className="min-h-screen flex flex-col w-full" style={{ background: "#0A1A12" }}>
+    <div className="min-h-screen w-full" style={{ background: "#0A1A12" }}>
 
       {/* ── Top bar ── */}
       <div className="flex items-center justify-between px-5 pt-6 pb-2 w-full max-w-2xl mx-auto">
@@ -82,11 +111,10 @@ export default function DashboardPage() {
 
       {/* ── Main tab ── */}
       {tab === "main" && (
-        <div className="flex-1 px-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div className="px-4 pb-28 w-full max-w-2xl mx-auto">
 
           {/* Wallet card */}
-          <div className="mt-4 rounded-3xl p-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d3d24 0%, #0a2a18 100%)", border: "1px solid rgba(0,200,117,0.2)" }}>
-            <div className="orb w-40 h-40 -top-10 -right-10 opacity-20" style={{ background: "#00C875" }} />
+          <div className="mt-4 rounded-3xl p-6" style={{ background: "linear-gradient(135deg, #0d3d24 0%, #0a2a18 100%)", border: "1px solid rgba(0,200,117,0.2)" }}>
             <div className="text-xs uppercase tracking-widest font-medium mb-3" style={{ color: "rgba(245,242,234,0.5)" }}>Wallet Balance</div>
             <div className="font-mono-tabular text-5xl font-bold mb-1" style={{ color: "#00C875" }}>
               Rs{balance}
@@ -94,39 +122,57 @@ export default function DashboardPage() {
             <div className="text-xs mt-3" style={{ color: "rgba(245,242,234,0.45)" }}>
               Referral code: <span className="font-mono font-bold" style={{ color: "#00C875" }}>{referralCode}</span>
             </div>
-            {/* Wallet icon */}
-            <div className="absolute bottom-4 right-5">
-              <Wallet size={52} style={{ color: "rgba(0,200,117,0.2)" }} />
-            </div>
           </div>
 
-          {/* Active plan card */}
-          <div className="mt-4 rounded-3xl p-5 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: myPlan ? "rgba(0,200,117,0.15)" : "rgba(255,255,255,0.06)" }}>
-                <Trophy size={20} style={{ color: myPlan ? "#00C875" : "rgba(245,242,234,0.3)" }} />
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-wide font-medium mb-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Active Plan</div>
-                <div className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>
-                  {myPlan ? myPlan.planName : "No active plan"}
+          {/* Active plan card — premium when active */}
+          {myPlan ? (
+            <div className="mt-4 rounded-3xl p-5"
+              style={{ background: "linear-gradient(135deg, #1a1500 0%, #0a1a10 100%)", border: "1.5px solid rgba(244,200,66,0.32)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(244,200,66,0.12)", border: "1.5px solid rgba(244,200,66,0.28)" }}>
+                  <Trophy size={22} style={{ color: "#F4C842" }} />
                 </div>
-                <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
-                  {myPlan ? `Until ${new Date(myPlan.endDate || "").toLocaleDateString()}` : "You don't have any active plan."}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <div className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(244,200,66,0.6)" }}>Active Plan</div>
+                    <div className="text-xs px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: "rgba(244,200,66,0.15)", color: "#F4C842", border: "1px solid rgba(244,200,66,0.3)" }}>PREMIUM</div>
+                  </div>
+                  <div className="text-sm font-bold" style={{ color: "#F5F2EA" }}>{myPlan.planName}</div>
                 </div>
+                <button onClick={() => setTab("plans")} className="text-xs font-semibold px-3 py-2 rounded-xl shrink-0"
+                  style={{ background: "rgba(244,200,66,0.13)", color: "#F4C842", border: "1px solid rgba(244,200,66,0.22)" }}>
+                  Plans ›
+                </button>
               </div>
             </div>
-            <button onClick={() => setTab("plans")} className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-xl shrink-0" style={{ background: "rgba(255,255,255,0.07)", color: "#F5F2EA" }}>
-              View plans ›
-            </button>
-          </div>
+          ) : (
+            <div className="mt-4 rounded-3xl p-5 flex items-center justify-between"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <Trophy size={20} style={{ color: "rgba(245,242,234,0.3)" }} />
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide font-medium mb-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Active Plan</div>
+                  <div className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>No active plan</div>
+                  <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>You don&apos;t have any active plan.</div>
+                </div>
+              </div>
+              <button onClick={() => setTab("plans")} className="flex items-center gap-1 text-xs font-semibold px-4 py-2.5 rounded-xl shrink-0"
+                style={{ background: "rgba(255,255,255,0.07)", color: "#F5F2EA" }}>
+                View plans ›
+              </button>
+            </div>
+          )}
 
-          {/* Quick actions: Deposit, Withdraw, Tasks */}
+          {/* Quick actions: Deposit, Withdraw, History */}
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[
               { icon: Banknote, label: "Deposit", sub: "Add funds\nto wallet", action: () => router.push("/dashboard/deposit") },
               { icon: ArrowUpFromLine, label: "Withdraw", sub: "Withdraw your\nearnings", action: () => router.push("/dashboard/withdraw") },
-              { icon: ListChecks, label: "Tasks", sub: "Complete tasks\n& earn", action: () => setTab("tasks") },
+              { icon: History, label: "History", sub: "View your\nactivity", action: () => openHistory("pending") },
             ].map((item) => (
               <button key={item.label} onClick={item.action} className="rounded-3xl p-4 flex flex-col items-center text-center transition-all active:scale-95" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: "rgba(0,200,117,0.12)", border: "1px solid rgba(0,200,117,0.2)" }}>
@@ -188,12 +234,34 @@ export default function DashboardPage() {
               View plans ›
             </button>
           </div>
+
+          {/* History card */}
+          <div className="mt-4 rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <History size={15} style={{ color: "#00C875" }} />
+              <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(245,242,234,0.5)" }}>History</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { label: "Pending", filter: "pending" as HistoryFilter, icon: Clock, color: "#F4C842" },
+                { label: "Withdraw", filter: "withdraw" as HistoryFilter, icon: ArrowUpFromLine, color: "#00C875" },
+                { label: "Deposit", filter: "deposit" as HistoryFilter, icon: Banknote, color: "#00C875" },
+              ]).map((item) => (
+                <button key={item.filter} onClick={() => openHistory(item.filter)}
+                  className="flex flex-col items-center gap-2 py-3 rounded-2xl transition-all active:scale-95"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <item.icon size={18} style={{ color: item.color }} />
+                  <span className="text-xs font-medium" style={{ color: "rgba(245,242,234,0.7)" }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* ── Tasks tab ── */}
       {tab === "tasks" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Tasks</h2>
           <TasksTab />
         </div>
@@ -201,7 +269,7 @@ export default function DashboardPage() {
 
       {/* ── Referral tab ── */}
       {tab === "referral" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Referral</h2>
           <div className="rounded-3xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-sm font-semibold mb-1" style={{ color: "#F5F2EA" }}>Your referral link</div>
@@ -242,23 +310,23 @@ export default function DashboardPage() {
 
       {/* ── Plans tab ── */}
       {tab === "plans" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Plans</h2>
 
           {/* Active plan banner */}
           {myPlan && (
-            <div className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-3" style={{ background: "rgba(0,200,117,0.1)", border: "1px solid rgba(0,200,117,0.25)" }}>
+            <div className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-3" style={{ background: "#0a2a18", border: "1px solid #1a4a2e" }}>
               <Trophy size={16} style={{ color: "#00C875" }} />
               <div className="min-w-0">
                 <div className="text-xs font-semibold" style={{ color: "#00C875" }}>Active: {myPlan.planName}</div>
-                <div className="text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>Until {new Date(myPlan.endDate || "").toLocaleDateString()}</div>
+                <div className="text-xs" style={{ color: "#5a8a6a" }}>Until {new Date(myPlan.endDate || "").toLocaleDateString()}</div>
               </div>
             </div>
           )}
 
           {/* Purchase message */}
           {purchaseMsg && (
-            <div className="rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: purchaseMsg.type === "ok" ? "rgba(0,200,117,0.1)" : "rgba(232,99,58,0.1)", color: purchaseMsg.type === "ok" ? "#00C875" : "#E8633A", border: `1px solid ${purchaseMsg.type === "ok" ? "rgba(0,200,117,0.2)" : "rgba(232,99,58,0.2)"}` }}>
+            <div className="rounded-2xl px-4 py-3 mb-4 text-sm" style={{ background: purchaseMsg.type === "ok" ? "#0a2a18" : "#2a0a0a", color: purchaseMsg.type === "ok" ? "#00C875" : "#E8633A", border: `1px solid ${purchaseMsg.type === "ok" ? "#1a4a2e" : "#4a1a1a"}` }}>
               {purchaseMsg.text}
             </div>
           )}
@@ -267,64 +335,69 @@ export default function DashboardPage() {
           {plans.length === 0 ? (
             <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No plans available yet.</div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {plans.map((plan) => {
+            <div>
+              {plans.map((plan, idx) => {
                 const price = parseFloat(plan.price as unknown as string);
                 const daily = plan.dailyEarning ? parseFloat(plan.dailyEarning as unknown as string) : null;
                 const maxU = plan.maxUsers ?? null;
                 const curU = plan.currentUsers ?? 0;
                 const isSoldOut = maxU ? curU >= maxU : false;
-                const spotsLeft = maxU ? maxU - curU : null;
 
                 return (
-                  <div key={plan.id} className="rounded-2xl p-5 relative" style={{ background: plan.isPopular ? "rgba(0,200,117,0.07)" : "rgba(255,255,255,0.04)", border: plan.isPopular ? "1px solid rgba(0,200,117,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
-                    {plan.isPopular && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "#00C875", color: "#000" }}>
-                        <Star size={9} fill="currentColor" /> Popular
+                  <div key={plan.id} style={{
+                    background: "#0d2a1a",
+                    border: "1px solid #1a4a2e",
+                    borderRadius: 24,
+                    padding: 20,
+                    marginBottom: idx < plans.length - 1 ? 16 : 0,
+                  }}>
+                    {/* Top row: logo + name */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
+                      <div style={{ width: 64, height: 64, borderRadius: 16, background: "#0a1f14", border: "1px solid #1a4a2e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                        {plan.logoUrl ? <img src={plan.logoUrl} alt={plan.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Trophy size={28} color="#00C875" />}
                       </div>
-                    )}
-
-                    <div className="text-xs uppercase tracking-wide mb-1 font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>{plan.durationDays} days</div>
-                    <div className="font-display text-xl mb-1" style={{ color: "#F5F2EA" }}>{plan.name}</div>
-                    <div className="font-mono-tabular text-2xl font-bold mb-2" style={{ color: "#00C875" }}>₨{price.toLocaleString()}</div>
-
-                    {daily && (
-                      <div className="text-xs mb-2 font-medium" style={{ color: "rgba(245,242,234,0.6)" }}>
-                        ₨{daily.toLocaleString()}/day · Total: ₨{(daily * plan.durationDays).toLocaleString()}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const, marginBottom: 2 }}>
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "#F5F2EA" }}>{plan.name}</span>
+                          {plan.isPopular && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 99, background: "#00C875", color: "#000" }}>POPULAR</span>}
+                        </div>
+                        <span style={{ fontSize: 12, color: "#5a8a6a" }}>{plan.durationDays} days</span>
                       </div>
-                    )}
+                    </div>
 
-                    {maxU && !isSoldOut && spotsLeft !== null && (
-                      <div className="text-xs mb-3" style={{ color: spotsLeft <= maxU * 0.3 ? "#E8633A" : "rgba(245,242,234,0.45)" }}>
-                        {spotsLeft} of {maxU} spots left
+                    {/* Price */}
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 30, fontWeight: 700, color: "#00C875", marginBottom: 4 }}>Rs{price.toLocaleString()}</div>
+                    {daily && <div style={{ fontSize: 12, color: "#5a8a6a", marginBottom: 16 }}>Rs{daily.toLocaleString()}/day · Total: Rs{(daily * plan.durationDays).toLocaleString()}</div>}
+
+                    {/* Stats row — no rgba, no grid */}
+                    <div style={{ display: "flex", borderTop: "1px solid #1a4a2e", paddingTop: 16, marginBottom: 20 }}>
+                      <div style={{ flex: 1, textAlign: "center" as const }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>{maxU ? (isSoldOut ? "Sold out" : `${curU}/${maxU}`) : "∞"}</div>
+                        <div style={{ fontSize: 11, color: "#5a8a6a" }}>{maxU ? "Slots" : "Unlimited"}</div>
                       </div>
-                    )}
+                      <div style={{ flex: 1, textAlign: "center" as const, borderLeft: "1px solid #1a4a2e", borderRight: "1px solid #1a4a2e" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>5%</div>
+                        <div style={{ fontSize: 11, color: "#5a8a6a" }}>Referral</div>
+                      </div>
+                      <div style={{ flex: 1, textAlign: "center" as const }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>100%</div>
+                        <div style={{ fontSize: 11, color: "#5a8a6a" }}>Secure</div>
+                      </div>
+                    </div>
 
-                    {plan.features.length > 0 && (
-                      <ul className="flex flex-col gap-1.5 mb-4">
-                        {plan.features.slice(0, 3).map((f, i) => (
-                          <li key={i} className="flex items-center gap-2 text-xs" style={{ color: "rgba(245,242,234,0.65)" }}>
-                            <CheckCircle2 size={12} style={{ color: "#00C875" }} className="shrink-0" /> {f}
-                          </li>
-                        ))}
-                        {plan.features.length > 3 && (
-                          <li className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>+{plan.features.length - 3} more features</li>
-                        )}
-                      </ul>
-                    )}
-
-                    {isSoldOut ? (
-                      <div className="w-full py-3 rounded-xl text-sm font-semibold text-center flex items-center justify-center gap-2" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.35)" }}>
+                    {/* CTA */}
+                    {myPlanIds.includes(plan.id) ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#0a2a18", border: "1px solid #1a4a2e", fontSize: 14, fontWeight: 700, color: "#00C875" }}>
+                        <CheckCircle2 size={16} color="#00C875" /> Plan Activated
+                      </div>
+                    ) : isSoldOut ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#111", fontSize: 14, color: "#444" }}>
                         <Lock size={13} /> Sold out
                       </div>
                     ) : (
-                      <button
-                        onClick={() => handlePurchase(plan.id)}
-                        disabled={purchasing === plan.id}
-                        className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
-                        style={{ background: plan.isPopular ? "#00C875" : "rgba(255,255,255,0.09)", color: plan.isPopular ? "#000" : "#F5F2EA" }}
-                      >
-                        {purchasing === plan.id ? "Activating…" : "Activate plan"}
+                      <button onClick={() => handlePurchase(plan.id)} disabled={purchasing === plan.id}
+                        style={{ width: "100%", padding: "14px 0", borderRadius: 16, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: purchasing === plan.id ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                        {purchasing === plan.id ? "Activating…" : <><span>Activate Plan</span><ChevronRight size={16} /></>}
                       </button>
                     )}
                   </div>
@@ -337,7 +410,7 @@ export default function DashboardPage() {
 
       {/* ── Menu tab ── */}
       {tab === "menu" && (
-        <div className="flex-1 px-4 pt-4 pb-28 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Menu</h2>
           <div className="flex flex-col gap-3">
             <button onClick={() => router.push("/dashboard/deposit")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
@@ -352,13 +425,155 @@ export default function DashboardPage() {
               <Home size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Go to main site</span>
             </Link>
+            <button onClick={() => logout()} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left w-full" style={{ background: "rgba(232,99,58,0.06)", border: "1px solid rgba(232,99,58,0.15)", color: "#E8633A" }}>
+              <LogOut size={18} style={{ color: "#E8633A" }} />
+              <span className="text-sm font-medium">Sign out</span>
+            </button>
           </div>
         </div>
       )}
 
+      {/* ── History tab ── */}
+      {tab === "history" && (
+        <div className="px-4 pt-4 pb-28 w-full max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-5">
+            <button onClick={() => setTab("main")} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "rgba(255,255,255,0.07)" }}>
+              <ChevronLeft size={18} style={{ color: "#F5F2EA" }} />
+            </button>
+            <h2 className="font-display text-xl" style={{ color: "#F5F2EA" }}>History</h2>
+          </div>
+
+          {/* Filter pills */}
+          <div className="flex gap-2 mb-5">
+            {([
+              { label: "Pending Tasks", filter: "pending" as HistoryFilter },
+              { label: "Withdrawals", filter: "withdraw" as HistoryFilter },
+              { label: "Deposits", filter: "deposit" as HistoryFilter },
+            ]).map((item) => (
+              <button key={item.filter} onClick={() => setHistoryFilter(item.filter)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{
+                  background: historyFilter === item.filter ? "#00C875" : "rgba(255,255,255,0.06)",
+                  color: historyFilter === item.filter ? "#000" : "rgba(245,242,234,0.55)",
+                  border: historyFilter === item.filter ? "none" : "1px solid rgba(255,255,255,0.08)",
+                }}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Loading */}
+          {histLoading ? (
+            <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>Loading…</div>
+          ) : (
+            <>
+              {/* ─ Pending Tasks ─ */}
+              {historyFilter === "pending" && (
+                histSubs.length === 0 ? (
+                  <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No task submissions yet.</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {histSubs.map((s) => (
+                      <div key={s.id} className="rounded-2xl px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold truncate mb-0.5" style={{ color: "#F5F2EA" }}>{s.title || s.taskTitle || "Task"}</div>
+                            <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{new Date(s.createdAt).toLocaleDateString()}</div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                              style={{
+                                background: s.status === "APPROVED" ? "rgba(0,200,117,0.15)" : s.status === "REJECTED" ? "rgba(232,99,58,0.15)" : "rgba(244,200,66,0.15)",
+                                color: s.status === "APPROVED" ? "#00C875" : s.status === "REJECTED" ? "#E8633A" : "#F4C842",
+                              }}>
+                              {s.status}
+                            </span>
+                            {s.rewardAmount && (
+                              <span className="text-xs font-semibold" style={{ color: "#00C875" }}>Rs{parseFloat(s.rewardAmount).toFixed(0)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* ─ Withdrawals ─ */}
+              {historyFilter === "withdraw" && (
+                histWithdrawals.length === 0 ? (
+                  <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No withdrawals yet.</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {histWithdrawals.map((w) => (
+                      <div key={w.id} className="rounded-2xl px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold mb-0.5" style={{ color: "#F5F2EA" }}>
+                              Rs{parseFloat(w.amount).toLocaleString()}
+                            </div>
+                            <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                              {w.method.replace("_", " ")} · {new Date(w.createdAt).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.35)" }}>{w.accountNumber}</div>
+                          </div>
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
+                            style={{
+                              background: w.status === "PAID" || w.status === "APPROVED" ? "rgba(0,200,117,0.15)" : w.status === "REJECTED" ? "rgba(232,99,58,0.15)" : "rgba(244,200,66,0.15)",
+                              color: w.status === "PAID" || w.status === "APPROVED" ? "#00C875" : w.status === "REJECTED" ? "#E8633A" : "#F4C842",
+                            }}>
+                            {w.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* ─ Deposits ─ */}
+              {historyFilter === "deposit" && (
+                histDeposits.length === 0 ? (
+                  <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No deposits yet.</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {histDeposits.map((d) => (
+                      <div key={d.id} className="rounded-2xl px-4 py-3.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold mb-0.5" style={{ color: "#F5F2EA" }}>
+                              Rs{parseFloat(d.amount).toLocaleString()}
+                            </div>
+                            <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                              {d.method.replace("_", " ")} · {new Date(d.createdAt).toLocaleDateString()}
+                            </div>
+                            {d.transactionId && (
+                              <div className="text-xs mt-0.5 font-mono" style={{ color: "rgba(245,242,234,0.3)" }}>{d.transactionId}</div>
+                            )}
+                          </div>
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
+                            style={{
+                              background: d.status === "APPROVED" ? "rgba(0,200,117,0.15)" : d.status === "REJECTED" ? "rgba(232,99,58,0.15)" : "rgba(244,200,66,0.15)",
+                              color: d.status === "APPROVED" ? "#00C875" : d.status === "REJECTED" ? "#E8633A" : "#F4C842",
+                            }}>
+                            {d.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Bottom navigation ── */}
-      <div className="fixed bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-40" style={{ background: "linear-gradient(to top, #0A1A12 85%, transparent)" }}>
-        <div className="flex items-end justify-around rounded-3xl px-2 py-3 max-w-2xl mx-auto" style={{ background: "rgba(15,32,24,0.95)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" }}>
+      <div className="fixed bottom-0 left-0 right-0 px-3 pb-4 pt-2 z-40" style={{ background: "#0A1A12" }}>
+        <div className="flex items-end justify-around rounded-3xl px-2 py-3 max-w-2xl mx-auto" style={{ background: "#0f2018", border: "1px solid #1a2e22" }}>
           {[
             { id: "main" as Tab, icon: Home, label: "Main" },
             { id: "tasks" as Tab, icon: ListChecks, label: "Tasks" },
@@ -371,7 +586,7 @@ export default function DashboardPage() {
             if (item.center) {
               return (
                 <button key={item.id} onClick={() => setTab(item.id)} className="flex flex-col items-center -mt-6">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ background: active ? "#00C875" : "rgba(0,200,117,0.2)", border: "3px solid #0A1A12" }}>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ background: active ? "#00C875" : "#0d2a1a", border: "3px solid #0A1A12" }}>
                     <Icon size={24} style={{ color: active ? "#000" : "#00C875" }} />
                   </div>
                   <span className="text-xs mt-1.5 font-medium" style={{ color: active ? "#00C875" : "rgba(245,242,234,0.45)" }}>{item.label}</span>
