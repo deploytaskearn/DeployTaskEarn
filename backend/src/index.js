@@ -160,6 +160,14 @@ async function runMigrations() {
       UNIQUE("codeId","userId")
     )`,
     `CREATE INDEX IF NOT EXISTS "UserSpin_userId_idx" ON "UserSpin"("userId")`,
+    `ALTER TABLE "SpinSegment" ADD COLUMN IF NOT EXISTS "segmentType" TEXT NOT NULL DEFAULT 'PRIZE'`,
+    `CREATE TABLE IF NOT EXISTS "UserBonusSpin" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "awardedAt" TIMESTAMP NOT NULL DEFAULT now(),
+      "usedAt" TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserBonusSpin_userId_idx" ON "UserBonusSpin"("userId")`,
   ];
   for (const stmt of patches) {
     try {
@@ -285,27 +293,40 @@ async function runMigrations() {
       console.error('Task seed warning:', err.message);
     }
 
-    // Seed default spin segments (only if none exist)
+    // Seed/reseed spin segments (12-segment premium design with One More Spin)
     try {
-      const existing = await pool.query(`SELECT COUNT(*) FROM "SpinSegment"`);
-      if (parseInt(existing.rows[0].count) === 0) {
-        const defaultSegments = [
-          { label: 'Better Luck', rewardAmount: 0, weight: 33, color: '#071b10', sortOrder: 0 },
-          { label: 'Rs 10',       rewardAmount: 10, weight: 22, color: '#0d2a1a', sortOrder: 1 },
-          { label: 'Try Again',   rewardAmount: 0,  weight: 22, color: '#071b10', sortOrder: 2 },
-          { label: 'Rs 25',       rewardAmount: 25, weight: 10, color: '#0d2a1a', sortOrder: 3 },
-          { label: 'Sorry!',      rewardAmount: 0,  weight: 6,  color: '#071b10', sortOrder: 4 },
-          { label: 'Rs 100',      rewardAmount: 100, weight: 4, color: '#0d2a1a', sortOrder: 5 },
-          { label: 'Rs 500',      rewardAmount: 500, weight: 2, color: '#1a1000', sortOrder: 6 },
-          { label: 'Rs 5,000',    rewardAmount: 5000, weight: 1, color: '#140800', sortOrder: 7 },
+      const hasNewDesign = await pool.query(`SELECT id FROM "SpinSegment" WHERE label='+1 Spin' LIMIT 1`);
+      if (!hasNewDesign.rows.length) {
+        // Unlink UserSpin references then clear old segments
+        await pool.query(`UPDATE "UserSpin" SET "segmentId"=NULL`);
+        await pool.query(`DELETE FROM "SpinSegment"`);
+        const segs = [
+          // Biggest (0.5 weight) → ~0.15% actual
+          { label: 'Rs 5,000',   rewardAmount: 5000, weight: 0.5, color: '#241200', sortOrder: 0,  segmentType: 'PRIZE'      },
+          // No prize tier (60 weight each) → ~54% total for 3 segments
+          { label: 'Try Again',  rewardAmount: 0,    weight: 60,  color: '#071b10', sortOrder: 1,  segmentType: 'PRIZE'      },
+          // Medium (20 weight) → ~6% each
+          { label: 'Rs 750',     rewardAmount: 750,  weight: 20,  color: '#133d24', sortOrder: 2,  segmentType: 'PRIZE'      },
+          { label: 'Sorry!',     rewardAmount: 0,    weight: 60,  color: '#0a1a0c', sortOrder: 3,  segmentType: 'PRIZE'      },
+          // Big (4 weight) → ~1.2% each
+          { label: 'Rs 1,500',   rewardAmount: 1500, weight: 4,   color: '#133d24', sortOrder: 4,  segmentType: 'PRIZE'      },
+          { label: 'Better Luck',rewardAmount: 0,    weight: 60,  color: '#071b10', sortOrder: 5,  segmentType: 'PRIZE'      },
+          // Bonus spin (4 weight) → ~1.2%
+          { label: '+1 Spin',    rewardAmount: 0,    weight: 4,   color: '#0d1530', sortOrder: 6,  segmentType: 'BONUS_SPIN' },
+          // Small (40 weight) → ~12% each
+          { label: 'Rs 100',     rewardAmount: 100,  weight: 40,  color: '#0d2a1a', sortOrder: 7,  segmentType: 'PRIZE'      },
+          { label: 'Rs 1,000',   rewardAmount: 1000, weight: 4,   color: '#133d24', sortOrder: 8,  segmentType: 'PRIZE'      },
+          { label: 'Rs 50',      rewardAmount: 50,   weight: 40,  color: '#0d2a1a', sortOrder: 9,  segmentType: 'PRIZE'      },
+          { label: 'Rs 500',     rewardAmount: 500,  weight: 20,  color: '#133d24', sortOrder: 10, segmentType: 'PRIZE'      },
+          { label: 'Rs 300',     rewardAmount: 300,  weight: 20,  color: '#0d2a1a', sortOrder: 11, segmentType: 'PRIZE'      },
         ];
-        for (const s of defaultSegments) {
+        for (const s of segs) {
           await pool.query(
-            `INSERT INTO "SpinSegment" (label,"rewardAmount",weight,color,"sortOrder") VALUES ($1,$2,$3,$4,$5)`,
-            [s.label, s.rewardAmount, s.weight, s.color, s.sortOrder]
+            `INSERT INTO "SpinSegment" (label,"rewardAmount",weight,color,"sortOrder","segmentType") VALUES ($1,$2,$3,$4,$5,$6)`,
+            [s.label, s.rewardAmount, s.weight, s.color, s.sortOrder, s.segmentType]
           );
         }
-        console.log('Default spin segments seeded');
+        console.log('Premium 12-segment spin wheel seeded');
       }
     } catch (err) {
       console.error('Spin segment seed warning:', err.message);

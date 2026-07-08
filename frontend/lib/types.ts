@@ -151,12 +151,13 @@ export interface SpinSegment {
   rewardAmount: string;
   color: string;
   sortOrder: number;
+  segmentType: "PRIZE" | "BONUS_SPIN";
 }
 
 export interface SpinInfo {
   segments: SpinSegment[];
   canSpin: boolean;
-  lastReward: string | null;
+  extraSpins: number;
 }
 
 export interface SpinResult {
