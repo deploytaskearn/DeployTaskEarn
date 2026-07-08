@@ -158,6 +158,11 @@ export interface SpinInfo {
   segments: SpinSegment[];
   canSpin: boolean;
   extraSpins: number;
+  tier: "normal" | "silver" | "gold";
+  dailyLimit: number;
+  spinsToday: number;
+  spinsRemaining: number;
+  multiplier: number;
 }
 
 export interface SpinResult {
