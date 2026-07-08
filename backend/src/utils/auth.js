@@ -22,9 +22,9 @@ function verifyToken(token) {
 }
 
 function generateReferralCode(name) {
-  const base = name.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'USER';
-  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `${base}${rand}`;
+  // Extract first name (first word) and uppercase it
+  const firstName = (name || '').trim().split(/\s+/)[0];
+  return firstName.replace(/[^a-zA-Z]/g, '').toUpperCase() || 'USER';
 }
 
 module.exports = {

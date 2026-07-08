@@ -6,7 +6,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import api from "@/lib/api";
 import { Withdrawal } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowLeft, CheckCircle2, AlertCircle, Wallet, Clock, XCircle, ArrowUpFromLine } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Wallet, Clock, XCircle, ArrowUpFromLine, Copy, Check } from "lucide-react";
 
 const METHODS = [
   { value: "EASYPAISA", label: "EasyPaisa" },
@@ -31,6 +31,14 @@ export default function WithdrawPage() {
 
   const balance = parseFloat(user?.balance || "0");
   const canWithdraw = balance >= MIN;
+  const [copied, setCopied] = useState(false);
+
+  function copyNumber() {
+    if (!accountNumber) return;
+    navigator.clipboard.writeText(accountNumber);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -147,11 +155,39 @@ export default function WithdrawPage() {
                   placeholder="Full name on account" className="px-4 py-3 rounded-2xl text-sm outline-none" style={INPUT} />
               </label>
 
-              <label className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.5)" }}>Account number *</span>
-                <input required value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="03XX-XXXXXXX" className="px-4 py-3 rounded-2xl text-sm outline-none" style={INPUT} />
-              </label>
+                <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(0,200,117,0.07)", border: "1.5px solid rgba(0,200,117,0.25)" }}>
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <input
+                      required
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="03XX-XXXXXXX"
+                      className="flex-1 outline-none font-mono text-lg font-bold tracking-wider bg-transparent"
+                      style={{ color: "#00C875", caretColor: "#00C875" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={copyNumber}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all"
+                      style={{
+                        background: copied ? "rgba(0,200,117,0.25)" : "rgba(0,200,117,0.12)",
+                        border: "1px solid rgba(0,200,117,0.3)",
+                      }}
+                    >
+                      {copied
+                        ? <Check size={15} style={{ color: "#00C875" }} />
+                        : <Copy size={15} style={{ color: "#00C875" }} />}
+                    </button>
+                  </div>
+                  {accountNumber && (
+                    <div className="px-4 pb-2 text-xs" style={{ color: "rgba(0,200,117,0.5)" }}>
+                      Tap copy icon to copy number
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <button type="submit" disabled={submitting || !canWithdraw}
                 className="w-full py-4 rounded-2xl text-sm font-bold disabled:opacity-40 mt-1 flex items-center justify-center gap-2"

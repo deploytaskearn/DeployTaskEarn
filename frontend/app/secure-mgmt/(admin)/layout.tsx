@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   Ticket,
+  Package,
 } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ const NAV = [
   { href: "/secure-mgmt/blog", label: "Blog", icon: Newspaper },
   { href: "/secure-mgmt/settings", label: "Payment settings", icon: Settings },
   { href: "/secure-mgmt/spin", label: "Spin Wheel", icon: Ticket },
+  { href: "/secure-mgmt/mystery", label: "Mystery Box", icon: Package },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -18,6 +18,7 @@ const cmsRoutes = require('./routes/cmsRoutes');
 const planRoutes = require('./routes/planRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const spinRoutes = require('./routes/spinRoutes');
+const mysteryRoutes = require('./routes/mysteryRoutes');
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/admin/upload', uploadRoutes);
 app.use('/api/spin', spinRoutes);
+app.use('/api/mystery', mysteryRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
@@ -168,6 +170,24 @@ async function runMigrations() {
       "usedAt" TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS "UserBonusSpin_userId_idx" ON "UserBonusSpin"("userId")`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'MYSTERY_BOX'`,
+    `CREATE TABLE IF NOT EXISTS "MysteryBoxPrize" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      label TEXT NOT NULL,
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      weight DECIMAL(6,2) NOT NULL DEFAULT 10,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS "UserMysteryBoxPlay" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "prizeId" UUID REFERENCES "MysteryBoxPrize"(id),
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      "playedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserMysteryBoxPlay_userId_idx" ON "UserMysteryBoxPlay"("userId")`,
   ];
   for (const stmt of patches) {
     try {
@@ -330,6 +350,30 @@ async function runMigrations() {
       }
     } catch (err) {
       console.error('Spin segment seed warning:', err.message);
+    }
+
+    // Seed default Mystery Box prizes
+    try {
+      const existing = await pool.query(`SELECT COUNT(*) FROM "MysteryBoxPrize"`);
+      if (parseInt(existing.rows[0].count) === 0) {
+        const prizes = [
+          { label: 'Rs 10',               rewardAmount: 10,  weight: 35, sortOrder: 0 },
+          { label: 'Rs 20',               rewardAmount: 20,  weight: 25, sortOrder: 1 },
+          { label: 'Rs 50',               rewardAmount: 50,  weight: 20, sortOrder: 2 },
+          { label: 'Rs 100',              rewardAmount: 100, weight: 12, sortOrder: 3 },
+          { label: 'Rs 200',              rewardAmount: 200, weight: 6,  sortOrder: 4 },
+          { label: 'Better Luck Next Time', rewardAmount: 0, weight: 2,  sortOrder: 5 },
+        ];
+        for (const p of prizes) {
+          await pool.query(
+            `INSERT INTO "MysteryBoxPrize" (label,"rewardAmount",weight,"sortOrder") VALUES ($1,$2,$3,$4)`,
+            [p.label, p.rewardAmount, p.weight, p.sortOrder]
+          );
+        }
+        console.log('Default Mystery Box prizes seeded');
+      }
+    } catch (err) {
+      console.error('Mystery Box seed warning:', err.message);
     }
   } catch (err) {
     console.error('Seed warning:', err.message);

@@ -177,6 +177,23 @@ export interface RedeemCode {
   createdAt: string;
 }
 
+export interface MysteryBoxPrize {
+  id: string;
+  label: string;
+  rewardAmount: string;
+  weight: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface MysteryBoxInfo {
+  prizes: MysteryBoxPrize[];
+  dailyLimit: number;
+  playsToday: number;
+  canPlay: boolean;
+  secondsUntilReset: number;
+}
+
 export interface DashboardStats {
   totalUsers: number;
   totalDeposited: number;

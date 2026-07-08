@@ -37,7 +37,7 @@ async function dashboardStats(req, res) {
 async function listUsers(req, res) {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u."createdAt",
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u."referralBonusRate", u."createdAt",
               w.balance, w.currency
        FROM "User" u LEFT JOIN "Wallet" w ON w."userId" = u.id
        ORDER BY u."createdAt" DESC`
@@ -63,6 +63,51 @@ async function updateUserStatus(req, res) {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('updateUserStatus error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function setReferralRate(req, res) {
+  try {
+    const { id } = req.params;
+    const { rate } = req.body; // number 0-100 or null to reset
+    if (rate !== null && rate !== undefined) {
+      const r = parseFloat(rate);
+      if (isNaN(r) || r < 0 || r > 100) {
+        return res.status(400).json({ error: 'Rate must be between 0 and 100' });
+      }
+    }
+    const result = await pool.query(
+      'UPDATE "User" SET "referralBonusRate" = $1, "updatedAt" = now() WHERE id = $2 RETURNING id, name, "referralBonusRate"',
+      [rate === null || rate === undefined ? null : parseFloat(rate), id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('setReferralRate error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function deleteUser(req, res) {
+  try {
+    const { id } = req.params;
+    const userRes = await pool.query('SELECT id, role FROM "User" WHERE id = $1', [id]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    if (userRes.rows[0].role === 'ADMIN') return res.status(403).json({ error: 'Cannot delete admin users' });
+
+    await pool.query('DELETE FROM "LedgerEntry" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "TaskSubmission" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "Deposit" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "Withdrawal" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserPlan" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "Wallet" WHERE "userId" = $1', [id]);
+    await pool.query('UPDATE "User" SET "referredById" = NULL WHERE "referredById" = $1', [id]);
+    await pool.query('DELETE FROM "User" WHERE id = $1', [id]);
+
+    res.status(204).send();
+  } catch (err) {
+    console.error('deleteUser error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -230,7 +275,12 @@ async function updateTask(req, res) {
 
 async function deleteTask(req, res) {
   try {
-    await pool.query('DELETE FROM "Task" WHERE id = $1', [req.params.id]);
+    const { id } = req.params;
+    // Remove related records first to avoid FK constraint errors
+    await pool.query('DELETE FROM "TaskSubmission" WHERE "taskId" = $1', [id]);
+    await pool.query('DELETE FROM "PlanTask" WHERE "taskId" = $1', [id]);
+    const result = await pool.query('DELETE FROM "Task" WHERE id = $1', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Task not found' });
     res.status(204).send();
   } catch (err) {
     console.error('deleteTask error:', err);
@@ -330,6 +380,8 @@ module.exports = {
   dashboardStats,
   listUsers,
   updateUserStatus,
+  deleteUser,
+  setReferralRate,
   adjustUserBalance,
   createTask,
   bulkCreateTasks,

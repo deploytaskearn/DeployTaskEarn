@@ -14,6 +14,8 @@ const planSchema = z.object({
   isPopular: z.boolean().default(false),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  logoUrl: z.string().optional().nullable(),
+  dailyTaskLimit: z.number().int().positive().optional().nullable(),
 });
 
 // Public: list active plans
@@ -85,10 +87,13 @@ async function updatePlan(req, res) {
   }
 }
 
-// Admin: delete plan
+// Admin: delete plan (force — removes UserPlan records first)
 async function deletePlan(req, res) {
   try {
-    await pool.query('DELETE FROM "Plan" WHERE id = $1', [req.params.id]);
+    const { id } = req.params;
+    await pool.query('DELETE FROM "UserPlan" WHERE "planId" = $1', [id]);
+    const result = await pool.query('DELETE FROM "Plan" WHERE id = $1', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Plan not found' });
     res.status(204).send();
   } catch (err) {
     console.error('deletePlan error:', err);
@@ -113,6 +118,15 @@ async function purchasePlan(req, res) {
       return res.status(422).json({ error: 'This plan is sold out. No more slots available.' });
     }
 
+    // Prevent activating the same plan twice
+    const alreadyActive = await pool.query(
+      'SELECT 1 FROM "UserPlan" WHERE "userId" = $1 AND "planId" = $2',
+      [userId, planId]
+    );
+    if (alreadyActive.rows.length > 0) {
+      return res.status(422).json({ error: 'You have already activated this plan.' });
+    }
+
     // Debit wallet
     await walletService.debit(userId, plan.price, 'PLAN_PURCHASE', planId, `Subscribed to ${plan.name}`);
 
@@ -129,14 +143,18 @@ async function purchasePlan(req, res) {
     // Increment currentUsers
     await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [planId]);
 
-    // Pay referral bonus (5%) if user was referred
+    // Pay referral bonus if user was referred
     const userRes = await pool.query(`SELECT "referredById" FROM "User" WHERE id = $1`, [userId]);
     const referredById = userRes.rows[0]?.referredById;
     if (referredById) {
-      const bonus = parseFloat(plan.price) * 0.05;
+      const referrerRes = await pool.query(`SELECT "referralBonusRate" FROM "User" WHERE id = $1`, [referredById]);
+      const customRate = referrerRes.rows[0]?.referralBonusRate;
+      const rate = customRate !== null && customRate !== undefined ? parseFloat(customRate) / 100 : 0.05;
+      const pct = Math.round(rate * 100);
+      const bonus = parseFloat(plan.price) * rate;
       await walletService.credit(
         referredById, bonus, 'REFERRAL_PLAN_BONUS', userPlan.id,
-        `5% referral bonus from ${plan.name} purchase`
+        `${pct}% referral bonus from ${plan.name} purchase`
       );
       await pool.query(
         `UPDATE "UserPlan" SET "referralBonusPaid" = true WHERE id = $1`,
@@ -172,6 +190,20 @@ async function getMyPlan(req, res) {
   }
 }
 
+// User: get all my active plan IDs
+async function getMyPlans(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT up."planId" FROM "UserPlan" up WHERE up."userId" = $1 AND up.status = 'ACTIVE'`,
+      [req.user.id]
+    );
+    res.json(result.rows.map((r) => r.planId));
+  } catch (err) {
+    console.error('getMyPlans error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // User: referral stats
 async function getReferralStats(req, res) {
   try {
@@ -198,4 +230,53 @@ async function getReferralStats(req, res) {
   }
 }
 
-module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getReferralStats };
+// Admin: get tasks assigned to a plan
+async function getPlanTasks(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT t.id, t.title, t."rewardAmount", t."planTier", tc.name as "categoryName"
+       FROM "PlanTask" pt
+       JOIN "Task" t ON t.id = pt."taskId"
+       LEFT JOIN "TaskCategory" tc ON tc.id = t."categoryId"
+       WHERE pt."planId" = $1
+       ORDER BY t.title`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('getPlanTasks error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin: assign a task to a plan
+async function addPlanTask(req, res) {
+  try {
+    const { taskId } = req.body;
+    if (!taskId) return res.status(400).json({ error: 'taskId required' });
+    await pool.query(
+      `INSERT INTO "PlanTask" ("planId","taskId") VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+      [req.params.id, taskId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('addPlanTask error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin: remove a task from a plan
+async function removePlanTask(req, res) {
+  try {
+    await pool.query(
+      `DELETE FROM "PlanTask" WHERE "planId"=$1 AND "taskId"=$2`,
+      [req.params.id, req.params.taskId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('removePlanTask error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getReferralStats, getPlanTasks, addPlanTask, removePlanTask };

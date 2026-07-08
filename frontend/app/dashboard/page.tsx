@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
+import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
 import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
 import api from "@/lib/api";
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [showSpin, setShowSpin] = useState(false);
+  const [showMystery, setShowMystery] = useState(false);
   // History
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("pending");
   const [histSubs, setHistSubs] = useState<TaskSubmission[]>([]);
@@ -203,6 +205,23 @@ export default function DashboardPage() {
             </div>
             <div style={{ padding: "8px 14px", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
               Spin!
+            </div>
+          </div>
+
+          {/* Mystery Box card */}
+          <div className="mt-4 rounded-3xl p-5 flex items-center gap-4"
+            style={{ background: "linear-gradient(135deg, #0d0a1f 0%, #130820 100%)", border: "1.5px solid rgba(168,85,247,0.25)", cursor: "pointer" }}
+            onClick={() => setShowMystery(true)}
+          >
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(168,85,247,0.12)", border: "1.5px solid rgba(168,85,247,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 24 }}>
+              🎁
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>Mystery Box</div>
+              <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)" }}>Open boxes daily — win up to Rs 200!</div>
+            </div>
+            <div style={{ padding: "8px 14px", borderRadius: 12, background: "#a855f7", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+              Open!
             </div>
           </div>
 
@@ -599,6 +618,16 @@ export default function DashboardPage() {
       {showSpin && (
         <SpinWheelModal
           onClose={() => setShowSpin(false)}
+          onWin={() => {
+            api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
+          }}
+        />
+      )}
+
+      {/* Mystery Box Modal */}
+      {showMystery && (
+        <MysteryBoxModal
+          onClose={() => setShowMystery(false)}
           onWin={() => {
             api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
           }}

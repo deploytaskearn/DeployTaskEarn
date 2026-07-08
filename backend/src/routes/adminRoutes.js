@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const spinController = require('../controllers/spinController');
+const mysteryController = require('../controllers/mysteryController');
 
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 
@@ -33,5 +34,10 @@ router.get('/spin/codes', spinController.adminGetCodes);
 router.post('/spin/codes', spinController.adminCreateCode);
 router.patch('/spin/codes/:id/toggle', spinController.adminToggleCode);
 router.delete('/spin/codes/:id', spinController.adminDeleteCode);
+
+// Mystery Box admin
+router.get('/mystery/prizes', mysteryController.adminGetPrizes);
+router.post('/mystery/prizes', mysteryController.adminUpsertPrize);
+router.delete('/mystery/prizes/:id', mysteryController.adminDeletePrize);
 
 module.exports = router;
