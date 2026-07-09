@@ -40,9 +40,13 @@ router.post('/spin/codes', spinController.adminCreateCode);
 router.patch('/spin/codes/:id/toggle', spinController.adminToggleCode);
 router.delete('/spin/codes/:id', spinController.adminDeleteCode);
 
-// Mystery Box admin
+// Mystery Box admin (free prizes)
 router.get('/mystery/prizes', mysteryController.adminGetPrizes);
 router.post('/mystery/prizes', mysteryController.adminUpsertPrize);
 router.delete('/mystery/prizes/:id', mysteryController.adminDeletePrize);
+// Mystery Box admin (premium prizes — plan users)
+router.get('/mystery/premium-prizes', mysteryController.adminGetPremiumPrizes);
+router.post('/mystery/premium-prizes', mysteryController.adminUpsertPremiumPrize);
+router.delete('/mystery/premium-prizes/:id', mysteryController.adminDeletePremiumPrize);
 
 module.exports = router;

@@ -22,6 +22,9 @@ const mysteryRoutes = require('./routes/mysteryRoutes');
 
 const app = express();
 
+// Trust Railway's load balancer proxy so rate-limiter reads X-Forwarded-For correctly
+app.set('trust proxy', 1);
+
 app.use(helmet({ crossOriginResourcePolicy: false })); // allow serving uploaded images cross-origin
 app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
@@ -206,6 +209,15 @@ async function runMigrations() {
       "segmentType" TEXT NOT NULL DEFAULT 'PRIZE',
       "createdAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
+    `CREATE TABLE IF NOT EXISTS "PremiumMysteryBoxPrize" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      label TEXT NOT NULL,
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      weight DECIMAL(6,2) NOT NULL DEFAULT 10,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
   ];
   for (const stmt of patches) {
     try {
@@ -270,37 +282,67 @@ async function runMigrations() {
     }
     console.log('Seed data ready');
 
-    // Seed 2 default tasks per plan
+    // Seed free tasks (visible to ALL users — NOT assigned to any plan)
     try {
       const catRes = await pool.query(`SELECT id FROM "TaskCategory" WHERE slug = 'social-media' LIMIT 1`);
       const catId = catRes.rows[0]?.id || null;
 
-      const defaultTasks = [
+      const freeTasks = [
         {
-          title: 'Follow us on Instagram',
-          description: 'Follow our official Instagram account and send a screenshot as proof.',
-          instructions: '1. Open Instagram\n2. Search for our account\n3. Follow the account\n4. Take a screenshot and submit as proof',
+          title: 'Follow TaskEarn on Instagram',
+          description: 'Follow our official Instagram account @taskearn and send a screenshot as proof.',
+          instructions: '1. Open Instagram\n2. Search @taskearn\n3. Follow the account\n4. Take a screenshot showing you followed\n5. Submit screenshot as proof',
           rewardAmount: 50,
           externalUrl: null,
         },
         {
-          title: 'Share on WhatsApp Status',
-          description: 'Share your referral link on your WhatsApp Status and send a screenshot as proof.',
-          instructions: '1. Copy your referral link from the dashboard\n2. Open WhatsApp\n3. Post the link on your Status\n4. Take a screenshot and submit as proof',
+          title: 'Subscribe to Our YouTube Channel',
+          description: 'Subscribe to the TaskEarn YouTube channel and send a screenshot as proof.',
+          instructions: '1. Open YouTube\n2. Search "TaskEarn"\n3. Subscribe to the channel\n4. Take a screenshot showing subscribed\n5. Submit screenshot as proof',
           rewardAmount: 30,
           externalUrl: null,
         },
         {
-          title: 'Download Our App from Play Store',
-          description: 'Download and install our app from Google Play Store and send a screenshot as proof.',
-          instructions: '1. Click "Open Link" to go to Play Store\n2. Download and install the app\n3. Open the app\n4. Take a screenshot showing the app installed\n5. Submit the screenshot as proof',
-          rewardAmount: 80,
-          externalUrl: 'https://play.google.com/store',
+          title: 'Share TaskEarn on WhatsApp Status',
+          description: 'Share your referral link on your WhatsApp Status and earn Rs 40.',
+          instructions: '1. Copy your referral link from the dashboard\n2. Open WhatsApp\n3. Post the link on your Status\n4. Take a screenshot of your status\n5. Submit screenshot as proof',
+          rewardAmount: 40,
+          externalUrl: null,
         },
       ];
 
-      const taskIds = [];
-      for (const task of defaultTasks) {
+      for (const task of freeTasks) {
+        const existing = await pool.query(`SELECT id FROM "Task" WHERE title = $1 LIMIT 1`, [task.title]);
+        if (existing.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO "Task" (id, title, description, instructions, "categoryId", source, "externalUrl", "rewardAmount", "requiresProof", "planTier", status, "createdAt", "updatedAt")
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, 'MANUAL', $5, $6, true, 0, 'ACTIVE', now(), now())`,
+            [task.title, task.description, task.instructions, catId, task.externalUrl, task.rewardAmount]
+          );
+        }
+        // Free tasks are NOT added to PlanTask — they are visible to everyone
+      }
+
+      // Seed plan-specific tasks (assigned to all plans)
+      const planTasks = [
+        {
+          title: 'Download Our App from Play Store',
+          description: 'Download and install our app from Google Play Store. Plan members earn Rs 80.',
+          instructions: '1. Click "Open Link" to go to Play Store\n2. Download and install the app\n3. Open the app\n4. Take a screenshot showing the app installed\n5. Submit screenshot as proof',
+          rewardAmount: 80,
+          externalUrl: 'https://play.google.com/store',
+        },
+        {
+          title: 'Join Our Telegram Group',
+          description: 'Join the TaskEarn official Telegram group and stay updated. Earn Rs 60.',
+          instructions: '1. Open Telegram\n2. Search "TaskEarn Official"\n3. Join the group\n4. Take a screenshot showing you joined\n5. Submit screenshot as proof',
+          rewardAmount: 60,
+          externalUrl: null,
+        },
+      ];
+
+      const planTaskIds = [];
+      for (const task of planTasks) {
         const existing = await pool.query(`SELECT id FROM "Task" WHERE title = $1 LIMIT 1`, [task.title]);
         let taskId;
         if (existing.rows.length > 0) {
@@ -313,20 +355,20 @@ async function runMigrations() {
           );
           taskId = r.rows[0].id;
         }
-        taskIds.push(taskId);
+        planTaskIds.push(taskId);
       }
 
-      // Assign both tasks to every plan
+      // Assign plan tasks to every plan
       const plansRes = await pool.query(`SELECT id FROM "Plan"`);
       for (const plan of plansRes.rows) {
-        for (const taskId of taskIds) {
+        for (const taskId of planTaskIds) {
           await pool.query(
             `INSERT INTO "PlanTask" ("planId","taskId") VALUES ($1,$2) ON CONFLICT DO NOTHING`,
             [plan.id, taskId]
           );
         }
       }
-      console.log('Default tasks seeded and assigned to all plans');
+      console.log('Free tasks + plan tasks seeded');
     } catch (err) {
       console.error('Task seed warning:', err.message);
     }
@@ -400,17 +442,16 @@ async function runMigrations() {
       console.error('Gold spin segment seed warning:', err.message);
     }
 
-    // Seed default Mystery Box prizes
+    // Seed default Mystery Box prizes (free users)
     try {
       const existing = await pool.query(`SELECT COUNT(*) FROM "MysteryBoxPrize"`);
       if (parseInt(existing.rows[0].count) === 0) {
         const prizes = [
-          { label: 'Rs 10',               rewardAmount: 10,  weight: 35, sortOrder: 0 },
-          { label: 'Rs 20',               rewardAmount: 20,  weight: 25, sortOrder: 1 },
-          { label: 'Rs 50',               rewardAmount: 50,  weight: 20, sortOrder: 2 },
-          { label: 'Rs 100',              rewardAmount: 100, weight: 12, sortOrder: 3 },
-          { label: 'Rs 200',              rewardAmount: 200, weight: 6,  sortOrder: 4 },
-          { label: 'Better Luck Next Time', rewardAmount: 0, weight: 2,  sortOrder: 5 },
+          { label: 'Rs 10',               rewardAmount: 10,  weight: 40, sortOrder: 0 },
+          { label: 'Rs 20',               rewardAmount: 20,  weight: 30, sortOrder: 1 },
+          { label: 'Rs 50',               rewardAmount: 50,  weight: 18, sortOrder: 2 },
+          { label: 'Rs 100',              rewardAmount: 100, weight: 8,  sortOrder: 3 },
+          { label: 'Better Luck Next Time', rewardAmount: 0, weight: 4,  sortOrder: 4 },
         ];
         for (const p of prizes) {
           await pool.query(
@@ -422,6 +463,31 @@ async function runMigrations() {
       }
     } catch (err) {
       console.error('Mystery Box seed warning:', err.message);
+    }
+
+    // Seed Premium Mystery Box prizes (plan users)
+    try {
+      const existing = await pool.query(`SELECT COUNT(*) FROM "PremiumMysteryBoxPrize"`);
+      if (parseInt(existing.rows[0].count) === 0) {
+        const prizes = [
+          { label: 'Rs 100',              rewardAmount: 100,  weight: 35, sortOrder: 0 },
+          { label: 'Rs 200',              rewardAmount: 200,  weight: 25, sortOrder: 1 },
+          { label: 'Rs 500',              rewardAmount: 500,  weight: 18, sortOrder: 2 },
+          { label: 'Rs 1,000',            rewardAmount: 1000, weight: 10, sortOrder: 3 },
+          { label: 'Rs 2,000',            rewardAmount: 2000, weight: 5,  sortOrder: 4 },
+          { label: 'Rs 5,000',            rewardAmount: 5000, weight: 2,  sortOrder: 5 },
+          { label: 'Better Luck Next Time', rewardAmount: 0,  weight: 5,  sortOrder: 6 },
+        ];
+        for (const p of prizes) {
+          await pool.query(
+            `INSERT INTO "PremiumMysteryBoxPrize" (label,"rewardAmount",weight,"sortOrder") VALUES ($1,$2,$3,$4)`,
+            [p.label, p.rewardAmount, p.weight, p.sortOrder]
+          );
+        }
+        console.log('Premium Mystery Box prizes seeded');
+      }
+    } catch (err) {
+      console.error('Premium Mystery Box seed warning:', err.message);
     }
   } catch (err) {
     console.error('Seed warning:', err.message);
