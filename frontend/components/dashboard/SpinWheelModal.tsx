@@ -7,6 +7,15 @@ import { SpinSegment, SpinInfo } from "@/lib/types";
 
 type Tier = "normal" | "silver" | "gold";
 
+interface TierTheme {
+  bg: string; ringBright: string; ringDim: string; ringStroke: string;
+  borderRing: string; innerRing: string; centerFill: string;
+  centerInner: string; centerOuter: string; starColor: string;
+  ctaBg: string; ctaShadow: string;
+  badgeBg: string | null; badgeColor: string | null; badgeText: string | null;
+  spinLabel: string; pointerColor: string;
+}
+
 interface SpinResult {
   winner: { id: string; label: string; rewardAmount: string; segmentType: string };
   winnerIndex: number;
@@ -22,7 +31,7 @@ interface Props {
   onWin: () => void;
 }
 
-const TIER_THEME = {
+const TIER_THEME: Record<Tier, TierTheme> = {
   normal: {
     bg:         "radial-gradient(ellipse at 50% 30%, #0d3a1a 0%, #04100a 70%)",
     ringBright: "#ffe066",
@@ -101,7 +110,7 @@ function WheelSVG({
   segments: SpinSegment[];
   rotation: number;
   spinning: boolean;
-  theme: typeof TIER_THEME["normal"];
+  theme: TierTheme;
 }) {
   const N = segments.length || 12;
   const segAngle = 360 / N;
