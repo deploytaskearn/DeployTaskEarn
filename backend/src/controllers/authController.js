@@ -24,7 +24,7 @@ async function register(req, res) {
   try {
     const data = registerSchema.parse(req.body);
 
-    const existing = await pool.query('SELECT id FROM "User" WHERE email = $1', [data.email]);
+    const existing = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = LOWER($1)', [data.email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
@@ -85,7 +85,7 @@ async function login(req, res) {
   try {
     const data = loginSchema.parse(req.body);
 
-    const result = await pool.query('SELECT * FROM "User" WHERE email = $1', [data.email]);
+    const result = await pool.query('SELECT * FROM "User" WHERE LOWER(email) = LOWER($1)', [data.email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
