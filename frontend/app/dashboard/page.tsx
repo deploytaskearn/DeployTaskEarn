@@ -42,10 +42,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
+    // Reset plan state immediately so stale data from a previous user never shows
+    setMyPlan(null);
+    setMyPlanIds([]);
     api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
-    api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
+    api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
     // Fetch fresh wallet balance from server (auth context balance can be stale)
     api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
   }, [user]);
