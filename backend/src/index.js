@@ -232,6 +232,31 @@ async function runMigrations() {
     )`,
     `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'GOLD_SPIN_PURCHASE'`,
     `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'PREMIUM_BOX_PURCHASE'`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'PLAN_REFUND'`,
+    // Keep only the newest active UserPlan per user — cancel the rest and refund wallet
+    `DO $$
+     DECLARE r RECORD;
+     BEGIN
+       FOR r IN
+         SELECT up.id, up."userId", up."amountPaid", up."planId"
+         FROM "UserPlan" up
+         WHERE up.status = 'ACTIVE'
+           AND up.id NOT IN (
+             SELECT DISTINCT ON ("userId") id FROM "UserPlan"
+             WHERE status = 'ACTIVE'
+             ORDER BY "userId", "createdAt" DESC
+           )
+       LOOP
+         UPDATE "UserPlan" SET status = 'CANCELLED' WHERE id = r.id;
+         UPDATE "Plan" SET "currentUsers" = GREATEST(0, "currentUsers" - 1) WHERE id = r."planId";
+         INSERT INTO "LedgerEntry" (id, "userId", type, direction, amount, "balanceAfter", "referenceId", note, "createdAt")
+         SELECT gen_random_uuid(), r."userId", 'PLAN_REFUND', 'CREDIT', r."amountPaid",
+                w.balance + r."amountPaid", r.id, 'Auto-refund: duplicate plan cancelled', now()
+         FROM "Wallet" w WHERE w."userId" = r."userId";
+         UPDATE "Wallet" SET balance = balance + r."amountPaid", "updatedAt" = now()
+         WHERE "userId" = r."userId";
+       END LOOP;
+     END $$`,
   ];
   for (const stmt of patches) {
     try {

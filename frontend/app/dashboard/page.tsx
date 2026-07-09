@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const [histDeposits, setHistDeposits] = useState<Deposit[]>([]);
   const [histWithdrawals, setHistWithdrawals] = useState<Withdrawal[]>([]);
   const [histLoading, setHistLoading] = useState(false);
+  const [liveBalance, setLiveBalance] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -45,7 +46,13 @@ export default function DashboardPage() {
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
+    // Fetch fresh wallet balance from server (auth context balance can be stale)
+    api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
   }, [user]);
+
+  function refreshBalance() {
+    api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
+  }
 
   function openHistory(filter: HistoryFilter) {
     setHistoryFilter(filter);
@@ -73,6 +80,7 @@ export default function DashboardPage() {
       api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => {});
       api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
       api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
+      refreshBalance();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Purchase failed";
       setPurchaseMsg({ type: "err", text: msg });
@@ -115,7 +123,7 @@ export default function DashboardPage() {
     );
   }
 
-  const balance = parseFloat(user.balance || "0").toFixed(2);
+  const balance = parseFloat(liveBalance ?? user.balance ?? "0").toFixed(2);
   const referralCode = referralStats?.referralCode || user.referralCode;
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
@@ -712,20 +720,16 @@ export default function DashboardPage() {
       {/* Lucky Wheel Modal */}
       {showSpin && (
         <SpinWheelModal
-          onClose={() => setShowSpin(false)}
-          onWin={() => {
-            api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
-          }}
+          onClose={() => { setShowSpin(false); refreshBalance(); }}
+          onWin={() => { refreshBalance(); }}
         />
       )}
 
       {/* Mystery Box Modal */}
       {showMystery && (
         <MysteryBoxModal
-          onClose={() => setShowMystery(false)}
-          onWin={() => {
-            api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
-          }}
+          onClose={() => { setShowMystery(false); refreshBalance(); }}
+          onWin={() => { refreshBalance(); }}
         />
       )}
 
