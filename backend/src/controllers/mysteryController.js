@@ -2,15 +2,7 @@ const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
 const DAILY_LIMIT = 1;
-
-async function getUserHasPlan(userId) {
-  const res = await pool.query(
-    `SELECT 1 FROM "UserPlan" WHERE "userId"=$1 AND status='ACTIVE'
-     AND ("endDate" IS NULL OR "endDate" > now()) LIMIT 1`,
-    [userId]
-  );
-  return res.rows.length > 0;
-}
+const PREMIUM_BOX_PRICE = 50; // Rs — cost to buy one premium mystery box open
 
 async function getSecondsUntilNextPlay(userId) {
   const last = await pool.query(
@@ -22,52 +14,41 @@ async function getSecondsUntilNextPlay(userId) {
   return Math.max(0, Math.floor((nextAt - Date.now()) / 1000));
 }
 
-async function getPrizes(hasPlan) {
-  const table = hasPlan ? '"PremiumMysteryBoxPrize"' : '"MysteryBoxPrize"';
-  const res = await pool.query(
-    `SELECT id, label, "rewardAmount", "sortOrder" FROM ${table} WHERE "isActive"=true ORDER BY "sortOrder"`
-  );
-  // Fallback to regular prizes if premium table has no rows yet
-  if (hasPlan && res.rows.length === 0) {
-    const fallback = await pool.query(
-      `SELECT id, label, "rewardAmount", "sortOrder" FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
-    );
-    return { prizes: fallback.rows, isPremium: false };
-  }
-  return { prizes: res.rows, isPremium: hasPlan };
-}
-
 async function getInfo(req, res) {
   try {
     const userId = req.user.id;
-    const hasPlan = await getUserHasPlan(userId);
-    const { prizes, isPremium } = await getPrizes(hasPlan);
 
-    let playsUsed;
-    if (!hasPlan) {
-      // No plan: lifetime limit of 1
-      const r = await pool.query(`SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1`, [userId]);
-      playsUsed = parseInt(r.rows[0].count);
-    } else {
-      // Has plan: 24h rolling window
-      const r = await pool.query(
-        `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
-        [userId]
-      );
-      playsUsed = parseInt(r.rows[0].count);
-    }
+    // ALL users: 1 free box per 24h
+    const r = await pool.query(
+      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
+      [userId]
+    );
+    const playsToday = parseInt(r.rows[0].count);
+    const canPlay = playsToday < DAILY_LIMIT;
+    const secondsUntilReset = canPlay ? 0 : await getSecondsUntilNextPlay(userId);
 
-    const canPlay = playsUsed < DAILY_LIMIT;
-    const secondsUntilReset = (!hasPlan || canPlay) ? 0 : await getSecondsUntilNextPlay(userId);
+    // Free prizes
+    const prizes = await pool.query(
+      `SELECT id, label, "rewardAmount", "sortOrder" FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
+    );
+
+    // Premium prizes
+    const premiumPrizes = await pool.query(
+      `SELECT id, label, "rewardAmount", "sortOrder" FROM "PremiumMysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
+    );
+
+    // Wallet balance (so frontend knows if user can afford premium)
+    const wb = await walletService.getBalance(userId);
+    const walletBalance = parseFloat(wb.balance ?? 0);
 
     res.json({
-      prizes,
-      isPremium,
-      dailyLimit: DAILY_LIMIT,
-      playsToday: playsUsed,
+      prizes: prizes.rows,
       canPlay,
+      playsToday,
       secondsUntilReset,
-      hasPlan,
+      premiumPrizes: premiumPrizes.rows,
+      premiumBoxPrice: PREMIUM_BOX_PRICE,
+      walletBalance,
     });
   } catch (err) {
     console.error('mystery getInfo:', err);
@@ -78,50 +59,87 @@ async function getInfo(req, res) {
 async function openBox(req, res) {
   try {
     const userId = req.user.id;
-    const hasPlan = await getUserHasPlan(userId);
 
-    let playsUsed;
-    if (!hasPlan) {
-      const r = await pool.query(`SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1`, [userId]);
-      playsUsed = parseInt(r.rows[0].count);
-    } else {
-      const r = await pool.query(
-        `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
-        [userId]
-      );
-      playsUsed = parseInt(r.rows[0].count);
-    }
+    // ALL users: 1 free play per 24h
+    const r = await pool.query(
+      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
+      [userId]
+    );
+    const playsToday = parseInt(r.rows[0].count);
 
-    if (playsUsed >= DAILY_LIMIT) {
-      if (!hasPlan) {
-        return res.status(422).json({
-          error: 'Activate a plan to open premium mystery boxes daily!',
-          needsPlan: true,
-        });
-      }
+    if (playsToday >= DAILY_LIMIT) {
       const secs = await getSecondsUntilNextPlay(userId);
       const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
       return res.status(422).json({
-        error: `Come back in ${h}h ${m}m for your next premium mystery box!`,
+        error: `Come back in ${h}h ${m}m for your next free mystery box!`,
         secondsUntilReset: secs,
-        hasPlan: true,
       });
     }
 
-    const table = hasPlan ? '"PremiumMysteryBoxPrize"' : '"MysteryBoxPrize"';
-    const prizesRes = await pool.query(
-      `SELECT * FROM ${table} WHERE "isActive"=true ORDER BY "sortOrder"`
+    const prizes = await pool.query(
+      `SELECT * FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
     );
-    let allPrizes = prizesRes.rows;
+    if (!prizes.rows.length) return res.status(422).json({ error: 'No prizes configured.' });
 
-    // Fallback to regular if premium empty
-    if (allPrizes.length === 0) {
+    const totalW = prizes.rows.reduce((s, r) => s + parseFloat(r.weight), 0);
+    let rand = Math.random() * totalW;
+    let winner = prizes.rows[0];
+    for (const p of prizes.rows) {
+      rand -= parseFloat(p.weight);
+      if (rand <= 0) { winner = p; break; }
+    }
+
+    if (parseFloat(winner.rewardAmount) > 0) {
+      await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Free mystery box: ${winner.label}`);
+    }
+
+    await pool.query(
+      `INSERT INTO "UserMysteryBoxPlay" ("userId","prizeId","rewardAmount") VALUES ($1,$2,$3)`,
+      [userId, winner.id, winner.rewardAmount]
+    );
+
+    const secs = await getSecondsUntilNextPlay(userId);
+    res.json({
+      prize: { id: winner.id, label: winner.label, rewardAmount: winner.rewardAmount },
+      playsToday: playsToday + 1,
+      playsRemaining: 0,
+      secondsUntilReset: secs,
+    });
+  } catch (err) {
+    console.error('mystery openBox:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function buyAndOpenPremium(req, res) {
+  try {
+    const userId = req.user.id;
+
+    // Deduct from wallet
+    try {
+      await walletService.debit(userId, PREMIUM_BOX_PRICE, 'PREMIUM_BOX_PURCHASE', null, 'Premium mystery box purchase');
+    } catch (err) {
+      if (err.code === 'INSUFFICIENT_BALANCE') {
+        return res.status(422).json({ error: `You need Rs ${PREMIUM_BOX_PRICE} in your wallet to buy a premium mystery box.` });
+      }
+      throw err;
+    }
+
+    const prizes = await pool.query(
+      `SELECT * FROM "PremiumMysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
+    );
+    let allPrizes = prizes.rows;
+
+    // Fallback to regular prizes if premium not seeded yet
+    if (!allPrizes.length) {
       const fallback = await pool.query(`SELECT * FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`);
       allPrizes = fallback.rows;
     }
-    if (!allPrizes.length) return res.status(422).json({ error: 'No prizes configured.' });
+    if (!allPrizes.length) {
+      await walletService.credit(userId, PREMIUM_BOX_PRICE, 'PREMIUM_BOX_PURCHASE', null, 'Refund — no prizes configured');
+      return res.status(422).json({ error: 'Premium prizes not configured yet.' });
+    }
 
-    // Weighted random selection
     const totalW = allPrizes.reduce((s, r) => s + parseFloat(r.weight), 0);
     let rand = Math.random() * totalW;
     let winner = allPrizes[0];
@@ -131,30 +149,26 @@ async function openBox(req, res) {
     }
 
     if (parseFloat(winner.rewardAmount) > 0) {
-      await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Mystery Box: ${winner.label}`);
+      await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Premium mystery box: ${winner.label}`);
     }
 
     await pool.query(
-      `INSERT INTO "UserMysteryBoxPlay" ("userId","prizeId","rewardAmount") VALUES ($1,$2,$3)`,
-      [userId, winner.id, winner.rewardAmount]
+      `INSERT INTO "UserPremiumBoxPlay" ("userId","rewardAmount") VALUES ($1,$2)`,
+      [userId, winner.rewardAmount]
     );
 
-    const secs = hasPlan ? await getSecondsUntilNextPlay(userId) : 0;
+    const wb = await walletService.getBalance(userId);
     res.json({
       prize: { id: winner.id, label: winner.label, rewardAmount: winner.rewardAmount },
-      playsToday: playsUsed + 1,
-      playsRemaining: 0,
-      secondsUntilReset: secs,
-      hasPlan,
-      isPremium: hasPlan,
+      walletBalance: parseFloat(wb.balance ?? 0),
     });
   } catch (err) {
-    console.error('mystery openBox:', err);
+    console.error('mystery buyAndOpenPremium:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// Admin prize management (regular)
+// Admin — free prizes
 async function adminGetPrizes(req, res) {
   try { res.json((await pool.query(`SELECT * FROM "MysteryBoxPrize" ORDER BY "sortOrder"`)).rows); }
   catch (err) { res.status(500).json({ error: 'Internal server error' }); }
@@ -174,7 +188,7 @@ async function adminDeletePrize(req, res) {
   catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
-// Admin prize management (premium)
+// Admin — premium prizes
 async function adminGetPremiumPrizes(req, res) {
   try { res.json((await pool.query(`SELECT * FROM "PremiumMysteryBoxPrize" ORDER BY "sortOrder"`)).rows); }
   catch (err) { res.status(500).json({ error: 'Internal server error' }); }
@@ -195,7 +209,7 @@ async function adminDeletePremiumPrize(req, res) {
 }
 
 module.exports = {
-  getInfo, openBox,
+  getInfo, openBox, buyAndOpenPremium,
   adminGetPrizes, adminUpsertPrize, adminDeletePrize,
   adminGetPremiumPrizes, adminUpsertPremiumPrize, adminDeletePremiumPrize,
 };

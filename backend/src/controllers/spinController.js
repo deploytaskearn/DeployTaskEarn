@@ -1,25 +1,8 @@
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
-async function getUserTier(userId) {
-  try {
-    const res = await pool.query(
-      `SELECT p.price::numeric AS price FROM "UserPlan" up
-       JOIN "Plan" p ON p.id = up."planId"
-       WHERE up."userId"=$1 AND up.status='ACTIVE'
-         AND (up."endDate" IS NULL OR up."endDate" > now())
-       ORDER BY p.price::numeric DESC LIMIT 1`,
-      [userId]
-    );
-    if (!res.rows.length) return { tier: 'normal', dailyLimit: 1, multiplier: 1, hasPlan: false };
-    const price = parseFloat(res.rows[0].price);
-    if (price >= 500) return { tier: 'gold',   dailyLimit: 5, multiplier: 2.0, hasPlan: true };
-    if (price >= 300) return { tier: 'silver', dailyLimit: 3, multiplier: 1.5, hasPlan: true };
-    return { tier: 'normal', dailyLimit: 1, multiplier: 1, hasPlan: true };
-  } catch {
-    return { tier: 'normal', dailyLimit: 1, multiplier: 1, hasPlan: false };
-  }
-}
+const GOLD_SPIN_PRICE = 100; // Rs — cost to buy one gold spin
+const PREMIUM_BOX_PRICE = 50; // Rs — used by mystery controller
 
 async function getSecondsUntilNextSpin(userId) {
   const last = await pool.query(
@@ -34,42 +17,40 @@ async function getSecondsUntilNextSpin(userId) {
 async function getSpinInfo(req, res) {
   try {
     const userId = req.user.id;
-    const { tier, dailyLimit, multiplier, hasPlan } = await getUserTier(userId);
 
-    const segTable = tier === 'gold' ? '"GoldSpinSegment"' : '"SpinSegment"';
-    const segs = await pool.query(
-      `SELECT id, label, "rewardAmount", color, "sortOrder", "segmentType"
-       FROM ${segTable} WHERE "isActive" = true ORDER BY "sortOrder"`
-    );
-
-    // No plan → lifetime limit of 1 spin. With plan → 24h rolling window.
-    let spinsUsed;
-    if (!hasPlan) {
-      const r = await pool.query(`SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1`, [userId]);
-      spinsUsed = parseInt(r.rows[0].count);
-    } else {
-      const r = await pool.query(
-        `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
-        [userId]
-      );
-      spinsUsed = parseInt(r.rows[0].count);
-    }
-
-    const bonus = await pool.query(
-      `SELECT COUNT(*) FROM "UserBonusSpin" WHERE "userId"=$1 AND "usedAt" IS NULL`,
+    // ALL users: 1 free spin per 24h rolling window
+    const r = await pool.query(
+      `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
       [userId]
     );
-    const extraSpins = parseInt(bonus.rows[0].count);
-    const spinsRemaining = Math.max(0, dailyLimit - spinsUsed);
-    const canSpin = spinsRemaining > 0 || extraSpins > 0;
+    const spinsToday = parseInt(r.rows[0].count);
+    const canSpin = spinsToday < 1;
+    const secondsUntilSpin = canSpin ? 0 : await getSecondsUntilNextSpin(userId);
 
-    // Only show countdown timer for plan users (no-plan users see "get a plan" message instead)
-    const secondsUntilSpin = (canSpin || !hasPlan) ? 0 : await getSecondsUntilNextSpin(userId);
+    // Free wheel segments
+    const segs = await pool.query(
+      `SELECT id, label, "rewardAmount", color, "sortOrder", "segmentType"
+       FROM "SpinSegment" WHERE "isActive"=true ORDER BY "sortOrder"`
+    );
+
+    // Gold wheel segments
+    const goldSegs = await pool.query(
+      `SELECT id, label, "rewardAmount", color, "sortOrder", "segmentType"
+       FROM "GoldSpinSegment" WHERE "isActive"=true ORDER BY "sortOrder"`
+    );
+
+    // Wallet balance
+    const wb = await walletService.getBalance(userId);
+    const walletBalance = parseFloat(wb.balance ?? 0);
 
     res.json({
-      segments: segs.rows, canSpin, extraSpins, tier,
-      dailyLimit, spinsToday: spinsUsed, spinsRemaining, multiplier,
-      secondsUntilSpin, hasPlan,
+      segments: segs.rows,
+      canSpin,
+      spinsToday,
+      secondsUntilSpin,
+      goldSegments: goldSegs.rows,
+      goldSpinPrice: GOLD_SPIN_PRICE,
+      walletBalance,
     });
   } catch (err) {
     console.error('getSpinInfo:', err);
@@ -80,46 +61,23 @@ async function getSpinInfo(req, res) {
 async function spin(req, res) {
   try {
     const userId = req.user.id;
-    const { tier, dailyLimit, multiplier, hasPlan } = await getUserTier(userId);
 
-    let spinsUsed;
-    if (!hasPlan) {
-      const r = await pool.query(`SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1`, [userId]);
-      spinsUsed = parseInt(r.rows[0].count);
-    } else {
-      const r = await pool.query(
-        `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
-        [userId]
-      );
-      spinsUsed = parseInt(r.rows[0].count);
+    // 1 free spin per 24h — all users
+    const r = await pool.query(
+      `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
+      [userId]
+    );
+    const spinsToday = parseInt(r.rows[0].count);
+    if (spinsToday >= 1) {
+      const secs = await getSecondsUntilNextSpin(userId);
+      const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+      return res.status(422).json({
+        error: `Next free spin in ${h}h ${m}m.`,
+        secondsUntilSpin: secs,
+      });
     }
 
-    let usedBonusSpin = false;
-    if (spinsUsed >= dailyLimit) {
-      const bonus = await pool.query(
-        `SELECT id FROM "UserBonusSpin" WHERE "userId"=$1 AND "usedAt" IS NULL ORDER BY "awardedAt" LIMIT 1`,
-        [userId]
-      );
-      if (!bonus.rows.length) {
-        if (!hasPlan) {
-          return res.status(422).json({
-            error: 'Activate a plan to get daily free spins!',
-            needsPlan: true,
-          });
-        }
-        const secs = await getSecondsUntilNextSpin(userId);
-        const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
-        return res.status(422).json({
-          error: `Next free spin in ${h}h ${m}m.`,
-          secondsUntilSpin: secs,
-        });
-      }
-      await pool.query(`UPDATE "UserBonusSpin" SET "usedAt"=now() WHERE id=$1`, [bonus.rows[0].id]);
-      usedBonusSpin = true;
-    }
-
-    const segTable = tier === 'gold' ? '"GoldSpinSegment"' : '"SpinSegment"';
-    const segs = await pool.query(`SELECT * FROM ${segTable} WHERE "isActive"=true ORDER BY "sortOrder"`);
+    const segs = await pool.query(`SELECT * FROM "SpinSegment" WHERE "isActive"=true ORDER BY "sortOrder"`);
     if (!segs.rows.length) return res.status(422).json({ error: 'Wheel not configured.' });
 
     const totalW = segs.rows.reduce((s, r) => s + parseFloat(r.weight), 0);
@@ -130,38 +88,83 @@ async function spin(req, res) {
       if (rand <= 0) { winner = seg; break; }
     }
     const winnerIndex = segs.rows.findIndex(s => s.id === winner.id);
-    const baseAmount = parseFloat(winner.rewardAmount);
-    const finalAmount = (winner.segmentType === 'PRIZE' && baseAmount > 0)
-      ? Math.round(baseAmount * multiplier) : baseAmount;
+    const rewardAmount = parseFloat(winner.rewardAmount);
 
     if (winner.segmentType === 'BONUS_SPIN') {
       await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [userId]);
-    } else if (finalAmount > 0) {
-      await walletService.credit(userId, finalAmount, 'SPIN_REWARD', winner.id, `Spin wheel: ${winner.label}`);
+    } else if (rewardAmount > 0) {
+      await walletService.credit(userId, rewardAmount, 'SPIN_REWARD', winner.id, `Free spin: ${winner.label}`);
     }
 
     await pool.query(
       `INSERT INTO "UserSpin" ("userId","segmentId","rewardAmount") VALUES ($1,$2,$3)`,
-      [userId, winner.id, finalAmount]
+      [userId, winner.id, rewardAmount]
     );
 
-    const bonusLeft = await pool.query(
-      `SELECT COUNT(*) FROM "UserBonusSpin" WHERE "userId"=$1 AND "usedAt" IS NULL`, [userId]
-    );
-    const extraSpinsRemaining = parseInt(bonusLeft.rows[0].count);
-    const newSpinsUsed = usedBonusSpin ? spinsUsed : spinsUsed + 1;
-    const spinsRemaining = Math.max(0, dailyLimit - newSpinsUsed);
-    const canSpinAgain = spinsRemaining > 0 || extraSpinsRemaining > 0;
-    const secondsUntilSpin = (canSpinAgain || !hasPlan) ? 0 : await getSecondsUntilNextSpin(userId);
-
+    const secs = await getSecondsUntilNextSpin(userId);
     res.json({
-      winner: { id: winner.id, label: winner.label, rewardAmount: String(finalAmount), segmentType: winner.segmentType },
-      winnerIndex, totalSegments: segs.rows.length,
-      usedBonusSpin, extraSpinsRemaining, tier, dailyLimit,
-      spinsRemaining, secondsUntilSpin, hasPlan,
+      winner: { id: winner.id, label: winner.label, rewardAmount: String(rewardAmount), segmentType: winner.segmentType },
+      winnerIndex,
+      totalSegments: segs.rows.length,
+      secondsUntilSpin: secs,
     });
   } catch (err) {
     console.error('spin:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function buyAndSpinGold(req, res) {
+  try {
+    const userId = req.user.id;
+
+    // Deduct from wallet (throws INSUFFICIENT_BALANCE if not enough)
+    try {
+      await walletService.debit(userId, GOLD_SPIN_PRICE, 'GOLD_SPIN_PURCHASE', null, 'Gold spin purchase');
+    } catch (err) {
+      if (err.code === 'INSUFFICIENT_BALANCE') {
+        return res.status(422).json({ error: `You need Rs ${GOLD_SPIN_PRICE} in your wallet to buy a gold spin.` });
+      }
+      throw err;
+    }
+
+    const segs = await pool.query(`SELECT * FROM "GoldSpinSegment" WHERE "isActive"=true ORDER BY "sortOrder"`);
+    if (!segs.rows.length) {
+      // Refund if gold wheel not configured
+      await walletService.credit(userId, GOLD_SPIN_PRICE, 'GOLD_SPIN_PURCHASE', null, 'Gold spin refund — wheel not configured');
+      return res.status(422).json({ error: 'Gold wheel not configured yet.' });
+    }
+
+    const totalW = segs.rows.reduce((s, r) => s + parseFloat(r.weight), 0);
+    let rand = Math.random() * totalW;
+    let winner = segs.rows[0];
+    for (const seg of segs.rows) {
+      rand -= parseFloat(seg.weight);
+      if (rand <= 0) { winner = seg; break; }
+    }
+    const winnerIndex = segs.rows.findIndex(s => s.id === winner.id);
+    const rewardAmount = parseFloat(winner.rewardAmount);
+
+    if (winner.segmentType === 'BONUS_SPIN') {
+      await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [userId]);
+    } else if (rewardAmount > 0) {
+      await walletService.credit(userId, rewardAmount, 'SPIN_REWARD', winner.id, `Gold spin: ${winner.label}`);
+    }
+
+    await pool.query(
+      `INSERT INTO "UserGoldSpinPlay" ("userId","rewardAmount") VALUES ($1,$2)`,
+      [userId, rewardAmount]
+    );
+
+    const wb = await walletService.getBalance(userId);
+    res.json({
+      winner: { id: winner.id, label: winner.label, rewardAmount: String(rewardAmount), segmentType: winner.segmentType },
+      winnerIndex,
+      totalSegments: segs.rows.length,
+      walletBalance: parseFloat(wb.balance ?? 0),
+    });
+  } catch (err) {
+    console.error('buyAndSpinGold:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -197,6 +200,7 @@ async function redeemCode(req, res) {
   }
 }
 
+// Admin endpoints
 async function adminGetSegments(req, res) {
   try { res.json((await pool.query(`SELECT * FROM "SpinSegment" ORDER BY "sortOrder"`)).rows); }
   catch (err) { res.status(500).json({ error: 'Internal server error' }); }
@@ -268,8 +272,9 @@ async function adminDeleteCode(req, res) {
 }
 
 module.exports = {
-  getSpinInfo, spin, redeemCode,
+  getSpinInfo, spin, buyAndSpinGold, redeemCode,
   adminGetSegments, adminUpsertSegment, adminDeleteSegment,
   adminGetGoldSegments, adminUpsertGoldSegment, adminDeleteGoldSegment,
   adminGetCodes, adminCreateCode, adminToggleCode, adminDeleteCode,
+  GOLD_SPIN_PRICE,
 };

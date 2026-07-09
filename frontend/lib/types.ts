@@ -159,22 +159,25 @@ export interface SpinSegment {
 export interface SpinInfo {
   segments: SpinSegment[];
   canSpin: boolean;
-  extraSpins: number;
-  tier: "normal" | "silver" | "gold";
-  dailyLimit: number;
   spinsToday: number;
-  spinsRemaining: number;
-  multiplier: number;
   secondsUntilSpin: number;
-  hasPlan: boolean;
+  goldSegments: SpinSegment[];
+  goldSpinPrice: number;
+  walletBalance: number;
 }
 
 export interface SpinResult {
-  winner: { id: string; label: string; rewardAmount: string };
+  winner: { id: string; label: string; rewardAmount: string; segmentType: string };
   winnerIndex: number;
   totalSegments: number;
-  secondsUntilSpin?: number;
-  hasPlan?: boolean;
+  secondsUntilSpin: number;
+}
+
+export interface GoldSpinResult {
+  winner: { id: string; label: string; rewardAmount: string; segmentType: string };
+  winnerIndex: number;
+  totalSegments: number;
+  walletBalance: number;
 }
 
 export interface RedeemCode {

@@ -218,6 +218,20 @@ async function runMigrations() {
       "sortOrder" INTEGER NOT NULL DEFAULT 0,
       "createdAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
+    `CREATE TABLE IF NOT EXISTS "UserGoldSpinPlay" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      "playedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE TABLE IF NOT EXISTS "UserPremiumBoxPlay" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      "playedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'GOLD_SPIN_PURCHASE'`,
+    `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'PREMIUM_BOX_PURCHASE'`,
   ];
   for (const stmt of patches) {
     try {
