@@ -29,7 +29,17 @@ export function TasksTab() {
     return <div className="py-12 text-center" style={{ color: "rgba(245,242,234,0.5)" }}>Loading tasks…</div>;
   }
 
-  if (tasks.length === 0) {
+  const freeTasks = tasks.filter(t => t.isFreeTask);
+  const planMap = new Map<string, { name: string; tasks: Task[] }>();
+  for (const t of tasks) {
+    if (!t.isFreeTask && t.planName) {
+      if (!planMap.has(t.planName)) planMap.set(t.planName, { name: t.planName, tasks: [] });
+      planMap.get(t.planName)!.tasks.push(t);
+    }
+  }
+  const planGroups = Array.from(planMap.values());
+
+  if (freeTasks.length === 0 && planGroups.length === 0) {
     return (
       <div className="py-16 text-center rounded-xl flex flex-col items-center gap-3" style={CARD}>
         <Trophy size={32} style={{ color: "rgba(245,242,234,0.2)" }} />
@@ -44,11 +54,41 @@ export function TasksTab() {
 
   return (
     <>
-      <div className="grid md:grid-cols-2 gap-4">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onSubmit={() => setActiveTask(task)} />
-        ))}
-      </div>
+      {/* Free Tasks */}
+      {freeTasks.length > 0 && (
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-base font-bold" style={{ color: "var(--color-surface)" }}>Free Tasks</span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(0,200,117,0.12)", color: "#00C875" }}>
+              {freeTasks.length}
+            </span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {freeTasks.map(t => (
+              <TaskCard key={t.id} task={t} onSubmit={() => setActiveTask(t)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Plan-specific tasks */}
+      {planGroups.map(group => (
+        <section key={group.name} className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-base font-bold" style={{ color: "var(--color-surface)" }}>
+              {group.name === "Gold" ? "👑" : group.name === "Silver" ? "🥈" : "📦"} {group.name} Plan Tasks
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(245,176,0,0.12)", color: "#F5B000" }}>
+              {group.tasks.length}
+            </span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {group.tasks.map(t => (
+              <TaskCard key={t.id} task={t} onSubmit={() => setActiveTask(t)} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       {activeTask && (
         <SubmitModal task={activeTask} onClose={() => setActiveTask(null)} onSubmitted={() => { setActiveTask(null); load(); }} />

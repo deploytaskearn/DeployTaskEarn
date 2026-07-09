@@ -9,21 +9,21 @@ async function listTasks(req, res) {
 
     // Get user's active plan IDs
     const planRes = await pool.query(
-      `SELECT "planId" FROM "UserPlan" WHERE "userId" = $1 AND status = 'ACTIVE'`,
+      `SELECT "planId" FROM "UserPlan" WHERE "userId" = $1 AND status = 'ACTIVE'
+       AND ("endDate" IS NULL OR "endDate" > now())`,
       [userId]
     );
     const userPlanIds = planRes.rows.map((r) => r.planId);
 
-    // No active plan → no tasks
-    if (userPlanIds.length === 0) return res.json([]);
-
-    // Only return tasks from user's active plans + global tasks (not in any PlanTask)
+    // Show:
+    //   - Free tasks (not assigned to any plan) → visible to everyone
+    //   - Plan tasks → only visible if user has that plan
     let query = `
       WITH plan_info AS (
         SELECT pt."taskId",
-          bool_or(pt."planId" = ANY($2)) as "userHasPlan",
+          bool_or(pt."planId" = ANY($2::uuid[])) as "userHasPlan",
           MIN(p.name) as "planName",
-          MIN(p.id::text) as "planId"
+          MIN(p.id::text) as "taskPlanId"
         FROM "PlanTask" pt
         JOIN "Plan" p ON p.id = pt."planId"
         GROUP BY pt."taskId"
@@ -31,7 +31,8 @@ async function listTasks(req, res) {
       SELECT t.*, tc.name as "categoryName",
         pi."userHasPlan",
         pi."planName",
-        pi."planId" as "taskPlanId",
+        pi."taskPlanId",
+        (pi."taskId" IS NULL) as "isFreeTask",
         EXISTS(
           SELECT 1 FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
@@ -41,7 +42,10 @@ async function listTasks(req, res) {
       LEFT JOIN plan_info pi ON pi."taskId" = t.id
       WHERE t.status = 'ACTIVE'
         AND (t."expiresAt" IS NULL OR t."expiresAt" > now())
-        AND (pi."userHasPlan" = true OR pi."taskId" IS NULL)
+        AND (
+          pi."taskId" IS NULL
+          OR pi."userHasPlan" = true
+        )
     `;
     const params = [userId, userPlanIds];
 
@@ -50,7 +54,8 @@ async function listTasks(req, res) {
       query += ` AND t."categoryId" = $${params.length}`;
     }
 
-    query += ` ORDER BY t."createdAt" DESC`;
+    // Free tasks first, then plan tasks ordered by plan name
+    query += ` ORDER BY (pi."taskId" IS NULL) DESC, pi."planName" ASC, t."createdAt" DESC`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);

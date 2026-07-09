@@ -32,6 +32,7 @@ export interface Task {
   userHasPlan?: boolean | null;
   planName?: string | null;
   taskPlanId?: string | null;
+  isFreeTask?: boolean;
   createdAt: string;
 }
 
@@ -165,12 +166,15 @@ export interface SpinInfo {
   spinsRemaining: number;
   multiplier: number;
   secondsUntilSpin: number;
+  hasPlan: boolean;
 }
 
 export interface SpinResult {
   winner: { id: string; label: string; rewardAmount: string };
   winnerIndex: number;
   totalSegments: number;
+  secondsUntilSpin?: number;
+  hasPlan?: boolean;
 }
 
 export interface RedeemCode {

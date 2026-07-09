@@ -24,6 +24,7 @@ interface SpinResult {
   spinsRemaining: number;
   secondsUntilSpin: number;
   tier: Tier;
+  hasPlan?: boolean;
 }
 
 interface Props {
@@ -214,6 +215,7 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
   const [extraSpins, setExtraSpins] = useState(0);
   const [spinsRemaining, setSpinsRemaining] = useState(0);
   const [secondsUntilSpin, setSecondsUntilSpin] = useState(0);
+  const [hasPlan, setHasPlan] = useState(true);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
@@ -233,6 +235,7 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
         setExtraSpins(r.data.extraSpins);
         setSpinsRemaining(r.data.spinsRemaining);
         setSecondsUntilSpin(r.data.secondsUntilSpin ?? 0);
+        setHasPlan(r.data.hasPlan ?? true);
       })
       .catch(() => setError("Failed to load spin data."));
   }
@@ -265,6 +268,7 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
         const newCanSpin = sr > 0 || extraSpinsRemaining > 0;
         setCanSpin(newCanSpin);
         setSecondsUntilSpin(res.data.secondsUntilSpin ?? 0);
+        setHasPlan(res.data.hasPlan ?? true);
         if (parseFloat(res.data.winner.rewardAmount) > 0) onWin();
       }, 5200);
     } catch (err: unknown) {
@@ -480,7 +484,14 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
           </button>
         )}
 
-        {!result && !canSpin && countdown.secs > 0 && (
+        {!result && !canSpin && !hasPlan && (
+          <div style={{ marginTop: 10, padding: "10px 20px", borderRadius: 14, background: "rgba(244,200,66,0.08)", border: "1px solid rgba(244,200,66,0.2)", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#F4C842", fontWeight: 700 }}>🎡 Free spin used!</div>
+            <div style={{ fontSize: 11, color: "rgba(245,242,234,0.5)", marginTop: 3 }}>Activate a plan to spin every day</div>
+          </div>
+        )}
+
+        {!result && !canSpin && hasPlan && countdown.secs > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "8px 18px", borderRadius: 99, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
             <Clock size={14} color="rgba(245,242,234,0.5)" />
             <span style={{ fontSize: 11, color: "rgba(245,242,234,0.5)" }}>Next free spin in</span>
