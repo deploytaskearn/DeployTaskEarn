@@ -29,6 +29,9 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
   const [showSpin, setShowSpin] = useState(false);
   const [showMystery, setShowMystery] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // History
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("pending");
   const [histSubs, setHistSubs] = useState<TaskSubmission[]>([]);
@@ -75,6 +78,23 @@ export default function DashboardPage() {
       setPurchaseMsg({ type: "err", text: msg });
     } finally {
       setPurchasing(null);
+    }
+  }
+
+  async function handleRedeem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!redeemInput.trim() || redeemLoading) return;
+    setRedeemLoading(true);
+    setRedeemMsg(null);
+    try {
+      const r = await api.post<{ reward: number; message: string }>("/spin/redeem", { code: redeemInput.trim() });
+      setRedeemMsg({ ok: true, text: r.data.message });
+      setRedeemInput("");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Invalid code.";
+      setRedeemMsg({ ok: false, text: msg });
+    } finally {
+      setRedeemLoading(false);
     }
   }
 
@@ -239,6 +259,31 @@ export default function DashboardPage() {
             <div style={{ padding: "8px 14px", borderRadius: 12, background: "#a855f7", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
               Open!
             </div>
+          </div>
+
+          {/* Redeem code card */}
+          <div className="mt-4 rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Gift size={15} style={{ color: "#F4C842" }} />
+              <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(245,242,234,0.5)" }}>Redeem Code</span>
+            </div>
+            {redeemMsg && (
+              <div className="mb-3 px-3 py-2 rounded-xl text-xs" style={{ background: redeemMsg.ok ? "rgba(0,200,117,0.1)" : "rgba(232,99,58,0.1)", color: redeemMsg.ok ? "#00C875" : "#E8633A", border: `1px solid ${redeemMsg.ok ? "rgba(0,200,117,0.25)" : "rgba(232,99,58,0.25)"}` }}>
+                {redeemMsg.text}
+              </div>
+            )}
+            <form onSubmit={handleRedeem} className="flex gap-2">
+              <input
+                value={redeemInput}
+                onChange={e => { setRedeemInput(e.target.value.toUpperCase()); setRedeemMsg(null); }}
+                placeholder="Enter promo code…"
+                style={{ flex: 1, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F2EA", fontSize: 12, fontFamily: "var(--font-mono, monospace)", letterSpacing: 1, outline: "none" }}
+              />
+              <button type="submit" disabled={redeemLoading || !redeemInput.trim()}
+                style={{ padding: "10px 16px", borderRadius: 12, background: "#F4C842", color: "#000", fontSize: 12, fontWeight: 800, border: "none", cursor: "pointer", opacity: redeemLoading || !redeemInput.trim() ? 0.5 : 1, flexShrink: 0 }}>
+                {redeemLoading ? "…" : "Claim"}
+              </button>
+            </form>
           </div>
 
           {/* Referral card */}
@@ -629,6 +674,36 @@ export default function DashboardPage() {
       )}
 
       </div>{/* end scrollable content */}
+
+      {/* Floating game buttons */}
+      {!showSpin && !showMystery && (
+        <div style={{ position: "fixed", right: 0, top: "50%", transform: "translateY(-50%)", zIndex: 40, display: "flex", flexDirection: "column", gap: 6 }}>
+          <button
+            onClick={() => setShowSpin(true)}
+            title="Lucky Wheel"
+            style={{
+              width: 50, height: 50, borderRadius: "14px 0 0 14px",
+              background: "linear-gradient(135deg, #0d3a1a 0%, #00C875 100%)",
+              border: "none", borderRight: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22,
+              boxShadow: "-3px 0 16px rgba(0,200,117,0.35)",
+            }}
+          >🎡</button>
+          <button
+            onClick={() => setShowMystery(true)}
+            title="Mystery Box"
+            style={{
+              width: 50, height: 50, borderRadius: "14px 0 0 14px",
+              background: "linear-gradient(135deg, #1a0535 0%, #a855f7 100%)",
+              border: "none", borderRight: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22,
+              boxShadow: "-3px 0 16px rgba(168,85,247,0.35)",
+            }}
+          >🎁</button>
+        </div>
+      )}
 
       {/* Lucky Wheel Modal */}
       {showSpin && (

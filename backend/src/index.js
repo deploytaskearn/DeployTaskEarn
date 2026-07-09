@@ -195,6 +195,17 @@ async function runMigrations() {
       "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS "UserCoin_userId_idx" ON "UserCoin"("userId")`,
+    `CREATE TABLE IF NOT EXISTS "GoldSpinSegment" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      label TEXT NOT NULL,
+      "rewardAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+      weight DECIMAL(6,2) NOT NULL DEFAULT 10,
+      color TEXT NOT NULL DEFAULT '#1a0d00',
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "segmentType" TEXT NOT NULL DEFAULT 'PRIZE',
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
   ];
   for (const stmt of patches) {
     try {
@@ -357,6 +368,36 @@ async function runMigrations() {
       }
     } catch (err) {
       console.error('Spin segment seed warning:', err.message);
+    }
+
+    // Seed default Gold Spin Wheel segments
+    try {
+      const existingGold = await pool.query(`SELECT COUNT(*) FROM "GoldSpinSegment"`);
+      if (parseInt(existingGold.rows[0].count) === 0) {
+        const goldSegs = [
+          { label: 'Rs 10,000', rewardAmount: 10000, weight: 0.3,  color: '#1a0800', sortOrder: 0,  segmentType: 'PRIZE'      },
+          { label: 'Try Again', rewardAmount: 0,     weight: 40,   color: '#0f0700', sortOrder: 1,  segmentType: 'PRIZE'      },
+          { label: 'Rs 2,000',  rewardAmount: 2000,  weight: 5,    color: '#1a0d00', sortOrder: 2,  segmentType: 'PRIZE'      },
+          { label: 'Sorry!',    rewardAmount: 0,     weight: 40,   color: '#150900', sortOrder: 3,  segmentType: 'PRIZE'      },
+          { label: 'Rs 5,000',  rewardAmount: 5000,  weight: 1,    color: '#1a0800', sortOrder: 4,  segmentType: 'PRIZE'      },
+          { label: 'Better Luck',rewardAmount: 0,    weight: 40,   color: '#0f0700', sortOrder: 5,  segmentType: 'PRIZE'      },
+          { label: '+1 Spin',   rewardAmount: 0,     weight: 8,    color: '#0d1530', sortOrder: 6,  segmentType: 'BONUS_SPIN' },
+          { label: 'Rs 500',    rewardAmount: 500,   weight: 25,   color: '#1a0d00', sortOrder: 7,  segmentType: 'PRIZE'      },
+          { label: 'Rs 3,000',  rewardAmount: 3000,  weight: 2,    color: '#1a0800', sortOrder: 8,  segmentType: 'PRIZE'      },
+          { label: 'Rs 200',    rewardAmount: 200,   weight: 30,   color: '#1a0d00', sortOrder: 9,  segmentType: 'PRIZE'      },
+          { label: 'Rs 1,000',  rewardAmount: 1000,  weight: 8,    color: '#1a0d00', sortOrder: 10, segmentType: 'PRIZE'      },
+          { label: 'Rs 750',    rewardAmount: 750,   weight: 10,   color: '#1a0d00', sortOrder: 11, segmentType: 'PRIZE'      },
+        ];
+        for (const s of goldSegs) {
+          await pool.query(
+            `INSERT INTO "GoldSpinSegment" (label,"rewardAmount",weight,color,"sortOrder","segmentType") VALUES ($1,$2,$3,$4,$5,$6)`,
+            [s.label, s.rewardAmount, s.weight, s.color, s.sortOrder, s.segmentType]
+          );
+        }
+        console.log('Gold spin wheel segments seeded');
+      }
+    } catch (err) {
+      console.error('Gold spin segment seed warning:', err.message);
     }
 
     // Seed default Mystery Box prizes

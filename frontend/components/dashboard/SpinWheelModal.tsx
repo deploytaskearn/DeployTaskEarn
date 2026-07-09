@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Ticket } from "lucide-react";
+import { X, Ticket, Clock } from "lucide-react";
 import api from "@/lib/api";
 import { SpinSegment, SpinInfo } from "@/lib/types";
 
@@ -13,6 +13,7 @@ interface SpinResult {
   totalSegments: number;
   extraSpinsRemaining: number;
   spinsRemaining: number;
+  secondsUntilSpin: number;
   tier: Tier;
 }
 
@@ -185,10 +186,25 @@ function WheelSVG({
   );
 }
 
+function useCountdown(initial: number) {
+  const [secs, setSecs] = useState(initial);
+  useEffect(() => {
+    setSecs(initial);
+    if (initial <= 0) return;
+    const t = setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [initial]);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return { secs, label: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` };
+}
+
 export function SpinWheelModal({ onClose, onWin }: Props) {
   const [info, setInfo] = useState<SpinInfo | null>(null);
   const [extraSpins, setExtraSpins] = useState(0);
   const [spinsRemaining, setSpinsRemaining] = useState(0);
+  const [secondsUntilSpin, setSecondsUntilSpin] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
@@ -198,6 +214,7 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
   const [error, setError] = useState("");
   const [canSpin, setCanSpin] = useState(false);
   const prevRotRef = useRef(0);
+  const countdown = useCountdown(secondsUntilSpin);
 
   function loadInfo() {
     api.get<SpinInfo>("/spin/info")
@@ -206,6 +223,7 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
         setCanSpin(r.data.canSpin);
         setExtraSpins(r.data.extraSpins);
         setSpinsRemaining(r.data.spinsRemaining);
+        setSecondsUntilSpin(r.data.secondsUntilSpin ?? 0);
       })
       .catch(() => setError("Failed to load spin data."));
   }
@@ -235,7 +253,9 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
         setSpinning(false);
         setExtraSpins(extraSpinsRemaining);
         setSpinsRemaining(sr);
-        setCanSpin(sr > 0 || extraSpinsRemaining > 0);
+        const newCanSpin = sr > 0 || extraSpinsRemaining > 0;
+        setCanSpin(newCanSpin);
+        setSecondsUntilSpin(res.data.secondsUntilSpin ?? 0);
         if (parseFloat(res.data.winner.rewardAmount) > 0) onWin();
       }, 5200);
     } catch (err: unknown) {
@@ -451,7 +471,15 @@ export function SpinWheelModal({ onClose, onWin }: Props) {
           </button>
         )}
 
-        {!result && (
+        {!result && !canSpin && countdown.secs > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "8px 18px", borderRadius: 99, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <Clock size={14} color="rgba(245,242,234,0.5)" />
+            <span style={{ fontSize: 11, color: "rgba(245,242,234,0.5)" }}>Next free spin in</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: theme.ringBright, fontFamily: "var(--font-mono, monospace)" }}>{countdown.label}</span>
+          </div>
+        )}
+
+        {!result && canSpin && (
           <div style={{ marginTop: 10, fontSize: 12, color: `${theme.ringBright}50`, letterSpacing: 2 }}>
             ✦ Spin Daily &nbsp;·&nbsp; Win Big! ✦
           </div>

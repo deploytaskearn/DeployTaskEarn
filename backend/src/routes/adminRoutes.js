@@ -26,10 +26,15 @@ router.delete('/tasks/:id', adminController.deleteTask);
 router.get('/task-submissions', adminController.listSubmissions);
 router.post('/task-submissions/:id/review', adminController.reviewSubmission);
 
-// Spin wheel admin
+// Spin wheel admin (normal)
 router.get('/spin/segments', spinController.adminGetSegments);
 router.post('/spin/segments', spinController.adminUpsertSegment);
 router.delete('/spin/segments/:id', spinController.adminDeleteSegment);
+// Spin wheel admin (gold — Rs 500 premium)
+router.get('/spin/gold-segments', spinController.adminGetGoldSegments);
+router.post('/spin/gold-segments', spinController.adminUpsertGoldSegment);
+router.delete('/spin/gold-segments/:id', spinController.adminDeleteGoldSegment);
+// Redeem codes admin
 router.get('/spin/codes', spinController.adminGetCodes);
 router.post('/spin/codes', spinController.adminCreateCode);
 router.patch('/spin/codes/:id/toggle', spinController.adminToggleCode);

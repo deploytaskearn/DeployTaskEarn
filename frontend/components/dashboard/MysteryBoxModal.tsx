@@ -36,7 +36,7 @@ const BOX_THEMES = [
 function GiftBoxSVG({ theme, phase }: { theme: typeof BOX_THEMES[0]; phase: "idle" | "shaking" | "opening" | "revealed" }) {
   const lidUp = phase === "opening" || phase === "revealed";
   return (
-    <svg viewBox="0 0 100 115" width="88" height="101" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox="0 0 100 115" width="72" height="83" style={{ display: "block", overflow: "visible" }}>
       {/* Platform glow */}
       <ellipse cx="50" cy="112" rx="42" ry="9" fill={theme.glow} opacity="0.25" />
       <ellipse cx="50" cy="112" rx="34" ry="6" fill={theme.glow} opacity="0.2" />
@@ -245,20 +245,24 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
 
         {/* No more plays */}
         {!canPlay && !result && (
-          <div style={{ margin: "8px 20px", padding: "12px 20px", borderRadius: 14, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#fbbf24", fontSize: 13, textAlign: "center", fontWeight: 600 }}>
-            🎁 All chances used! Come back tomorrow.
+          <div style={{ margin: "8px 20px", padding: "12px 20px", borderRadius: 14, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", textAlign: "center" }}>
+            <div style={{ color: "#fbbf24", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>🎁 Daily box used!</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "rgba(245,242,234,0.5)", fontSize: 12 }}>
+              <span>Next box in</span>
+              <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 800, color: "#fbbf24", fontSize: 14 }}>{countdown}</span>
+            </div>
           </div>
         )}
 
         {/* Gift boxes */}
-        <div style={{ display: "flex", gap: 10, padding: "8px 16px", overflowX: "auto", width: "100%", maxWidth: 480, justifyContent: "center", flexWrap: "nowrap" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "8px 16px", width: "100%", maxWidth: 480, justifyContent: "center" }}>
           {BOX_THEMES.map((theme, i) => {
             const isSelected = selectedBox === i;
             const isOther = selectedBox !== null && !isSelected;
             const boxPhase = isSelected ? phase : "idle";
 
             return (
-              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 {/* Prize reveal above box */}
                 <div style={{
                   height: 36, display: "flex", alignItems: "center", justifyContent: "center",
@@ -300,13 +304,13 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
                   onClick={() => handleBoxClick(i)}
                   disabled={!canPlay || selectedBox !== null}
                   style={{
-                    padding: "8px 14px", borderRadius: 10, border: "none",
+                    padding: "6px 10px", borderRadius: 8, border: "none",
                     background: canPlay && selectedBox === null
                       ? `linear-gradient(135deg, ${theme.glow}cc, ${theme.glow})`
                       : "rgba(255,255,255,0.08)",
                     color: canPlay && selectedBox === null ? "#000" : "rgba(245,242,234,0.3)",
-                    fontSize: 11, fontWeight: 800, cursor: canPlay && selectedBox === null ? "pointer" : "default",
-                    letterSpacing: 1, minWidth: 72,
+                    fontSize: 10, fontWeight: 800, cursor: canPlay && selectedBox === null ? "pointer" : "default",
+                    letterSpacing: 1, minWidth: 60,
                     boxShadow: canPlay && selectedBox === null ? `0 4px 12px ${theme.glow}50` : "none",
                     transition: "all 0.2s ease",
                   }}

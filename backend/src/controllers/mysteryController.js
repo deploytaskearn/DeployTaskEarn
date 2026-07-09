@@ -1,7 +1,17 @@
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
-const DAILY_LIMIT = 5;
+const DAILY_LIMIT = 1;
+
+async function getSecondsUntilNextPlay(userId) {
+  const last = await pool.query(
+    `SELECT "playedAt" FROM "UserMysteryBoxPlay" WHERE "userId"=$1 ORDER BY "playedAt" DESC LIMIT 1`,
+    [userId]
+  );
+  if (!last.rows.length) return 0;
+  const nextAt = new Date(last.rows[0].playedAt).getTime() + 24 * 3600 * 1000;
+  return Math.max(0, Math.floor((nextAt - Date.now()) / 1000));
+}
 
 async function getInfo(req, res) {
   try {
@@ -9,23 +19,20 @@ async function getInfo(req, res) {
     const prizes = await pool.query(
       `SELECT id, label, "rewardAmount", "sortOrder" FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
     );
+    // 24h rolling window
     const plays = await pool.query(
-      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND DATE("playedAt")=CURRENT_DATE`,
+      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
       [userId]
     );
     const playsToday = parseInt(plays.rows[0].count);
-
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const secondsUntilReset = Math.floor((tomorrow - now) / 1000);
+    const canPlay = playsToday < DAILY_LIMIT;
+    const secondsUntilReset = canPlay ? 0 : await getSecondsUntilNextPlay(userId);
 
     res.json({
       prizes: prizes.rows,
       dailyLimit: DAILY_LIMIT,
       playsToday,
-      canPlay: playsToday < DAILY_LIMIT,
+      canPlay,
       secondsUntilReset,
     });
   } catch (err) {
@@ -38,12 +45,17 @@ async function openBox(req, res) {
   try {
     const userId = req.user.id;
     const plays = await pool.query(
-      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND DATE("playedAt")=CURRENT_DATE`,
+      `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
       [userId]
     );
     const playsToday = parseInt(plays.rows[0].count);
     if (playsToday >= DAILY_LIMIT) {
-      return res.status(422).json({ error: `You've used all ${DAILY_LIMIT} daily chances. Come back tomorrow!` });
+      const secs = await getSecondsUntilNextPlay(userId);
+      const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+      return res.status(422).json({
+        error: `Come back in ${h}h ${m}m for your next free mystery box!`,
+        secondsUntilReset: secs,
+      });
     }
 
     const prizes = await pool.query(
@@ -69,10 +81,12 @@ async function openBox(req, res) {
     );
 
     const newPlays = playsToday + 1;
+    const secs = await getSecondsUntilNextPlay(userId);
     res.json({
       prize: { id: winner.id, label: winner.label, rewardAmount: winner.rewardAmount },
       playsToday: newPlays,
-      playsRemaining: DAILY_LIMIT - newPlays,
+      playsRemaining: Math.max(0, DAILY_LIMIT - newPlays),
+      secondsUntilReset: secs,
     });
   } catch (err) {
     console.error('mystery openBox:', err);

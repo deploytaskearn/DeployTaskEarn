@@ -14,6 +14,7 @@ interface Segment {
   color: string;
   isActive: boolean;
   sortOrder: number;
+  segmentType?: string;
 }
 
 const INP = {
@@ -23,13 +24,17 @@ const INP = {
   outline: "none",
 };
 
+type TabId = "codes" | "segments" | "gold";
+
 export default function AdminSpinPage() {
-  const [tab, setTab] = useState<"segments" | "codes">("codes");
+  const [tab, setTab] = useState<TabId>("codes");
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [goldSegments, setGoldSegments] = useState<Segment[]>([]);
   const [codes, setCodes] = useState<RedeemCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSegForm, setShowSegForm] = useState(false);
   const [editSeg, setEditSeg] = useState<Segment | null>(null);
+  const [segApiBase, setSegApiBase] = useState<"/admin/spin/segments" | "/admin/spin/gold-segments">("/admin/spin/segments");
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
@@ -37,17 +42,19 @@ export default function AdminSpinPage() {
     setLoading(true);
     Promise.all([
       api.get<Segment[]>("/admin/spin/segments"),
+      api.get<Segment[]>("/admin/spin/gold-segments"),
       api.get<RedeemCode[]>("/admin/spin/codes"),
     ])
-      .then(([s, c]) => { setSegments(s.data); setCodes(c.data); })
+      .then(([s, g, c]) => { setSegments(s.data); setGoldSegments(g.data); setCodes(c.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
 
   useEffect(() => { loadAll(); }, []);
 
-  async function deleteSeg(id: string) {
-    await api.delete(`/admin/spin/segments/${id}`);
+  async function deleteSeg(id: string, gold: boolean) {
+    const base = gold ? "/admin/spin/gold-segments" : "/admin/spin/segments";
+    await api.delete(`${base}/${id}`);
     setConfirmDel(null);
     loadAll();
   }
@@ -63,29 +70,46 @@ export default function AdminSpinPage() {
     loadAll();
   }
 
+  function openSegForm(gold: boolean, seg: Segment | null) {
+    setSegApiBase(gold ? "/admin/spin/gold-segments" : "/admin/spin/segments");
+    setEditSeg(seg);
+    setShowSegForm(true);
+  }
+
+  const addButtonLabel = tab === "codes" ? "New Code" : tab === "gold" ? "New Gold Segment" : "New Segment";
+
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
-        <AdminPageHeader title="Spin Wheel" subtitle="Manage redeem codes and wheel segments." />
+        <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments, gold wheel, and redeem codes." />
         <button
-          onClick={() => tab === "codes" ? setShowCodeForm(true) : (setEditSeg(null), setShowSegForm(true))}
+          onClick={() => {
+            if (tab === "codes") setShowCodeForm(true);
+            else openSegForm(tab === "gold", null);
+          }}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
           style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
         >
-          <Plus size={15} /> {tab === "codes" ? "New Code" : "New Segment"}
+          <Plus size={15} /> {addButtonLabel}
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
-        {(["codes", "segments"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {([
+          { id: "codes" as TabId, label: "Redeem Codes" },
+          { id: "segments" as TabId, label: "Normal Wheel" },
+          { id: "gold" as TabId, label: "👑 Gold Wheel" },
+        ]).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
             className="px-4 py-2 rounded-lg text-sm font-semibold"
             style={{
-              background: tab === t ? "var(--color-accent)" : "rgba(255,255,255,0.06)",
-              color: tab === t ? "#000" : "rgba(245,242,234,0.6)",
+              background: tab === t.id
+                ? (t.id === "gold" ? "linear-gradient(90deg,#b8860b,#ffd700)" : "var(--color-accent)")
+                : "rgba(255,255,255,0.06)",
+              color: tab === t.id ? "#000" : "rgba(245,242,234,0.6)",
             }}>
-            {t === "codes" ? "Redeem Codes" : "Wheel Segments"}
+            {t.label}
           </button>
         ))}
       </div>
@@ -100,13 +124,23 @@ export default function AdminSpinPage() {
           onToggle={toggleCode}
           onDelete={deleteCode}
         />
+      ) : tab === "gold" ? (
+        <SegmentsTable
+          segments={goldSegments}
+          isGold
+          confirmDel={confirmDel}
+          setConfirmDel={setConfirmDel}
+          onEdit={(s) => openSegForm(true, s)}
+          onDelete={(id) => deleteSeg(id, true)}
+        />
       ) : (
         <SegmentsTable
           segments={segments}
+          isGold={false}
           confirmDel={confirmDel}
           setConfirmDel={setConfirmDel}
-          onEdit={(s) => { setEditSeg(s); setShowSegForm(true); }}
-          onDelete={deleteSeg}
+          onEdit={(s) => openSegForm(false, s)}
+          onDelete={(id) => deleteSeg(id, false)}
         />
       )}
 
@@ -117,6 +151,8 @@ export default function AdminSpinPage() {
       {showSegForm && (
         <SegmentModal
           seg={editSeg}
+          apiBase={segApiBase}
+          isGold={segApiBase === "/admin/spin/gold-segments"}
           onClose={() => { setShowSegForm(false); setEditSeg(null); }}
           onSaved={() => { setShowSegForm(false); setEditSeg(null); loadAll(); }}
         />
@@ -175,8 +211,9 @@ function CodesTable({ codes, confirmDel, setConfirmDel, onToggle, onDelete }: {
   );
 }
 
-function SegmentsTable({ segments, confirmDel, setConfirmDel, onEdit, onDelete }: {
+function SegmentsTable({ segments, isGold, confirmDel, setConfirmDel, onEdit, onDelete }: {
   segments: Segment[];
+  isGold: boolean;
   confirmDel: string | null;
   setConfirmDel: (id: string | null) => void;
   onEdit: (s: Segment) => void;
@@ -186,12 +223,17 @@ function SegmentsTable({ segments, confirmDel, setConfirmDel, onEdit, onDelete }
 
   if (!segments.length) return (
     <div className="p-10 text-center rounded-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--color-muted)" }}>
-      No wheel segments. Create some above.
+      {isGold ? "No gold wheel segments. Create some above." : "No wheel segments. Create some above."}
     </div>
   );
 
   return (
     <div>
+      {isGold && (
+        <div className="mb-3 px-4 py-3 rounded-lg text-xs" style={{ background: "rgba(255,215,0,0.07)", border: "1px solid rgba(255,215,0,0.2)", color: "#ffd700" }}>
+          👑 Gold wheel is shown to users with the Rs 500 plan. Higher rewards recommended.
+        </div>
+      )}
       <div className="text-xs mb-3" style={{ color: "var(--color-muted)" }}>
         Total weight: {totalWeight.toFixed(1)} — probabilities are weight / total_weight
       </div>
@@ -203,7 +245,10 @@ function SegmentsTable({ segments, confirmDel, setConfirmDel, onEdit, onDelete }
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div style={{ width: 20, height: 20, borderRadius: 4, background: s.color, border: "1px solid rgba(255,255,255,0.15)", flexShrink: 0 }} />
                 <div>
-                  <div className="text-sm font-medium mb-0.5" style={{ color: "var(--color-surface)" }}>{s.label}</div>
+                  <div className="text-sm font-medium mb-0.5" style={{ color: "var(--color-surface)" }}>
+                    {s.label}
+                    {s.segmentType === "BONUS_SPIN" && <span className="ml-2 text-xs" style={{ color: "#a0b8ff" }}>+1 Spin</span>}
+                  </div>
                   <div className="text-xs" style={{ color: "var(--color-muted)" }}>
                     {parseFloat(s.rewardAmount) > 0 ? `Rs ${parseFloat(s.rewardAmount).toLocaleString()}` : "No prize"} · Weight {s.weight} · {prob}% chance
                   </div>
@@ -211,7 +256,7 @@ function SegmentsTable({ segments, confirmDel, setConfirmDel, onEdit, onDelete }
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => onEdit(s)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ background: "rgba(0,200,117,0.12)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
+                  style={{ background: isGold ? "rgba(255,215,0,0.12)" : "rgba(0,200,117,0.12)", color: isGold ? "#ffd700" : "#00C875", border: `1px solid ${isGold ? "rgba(255,215,0,0.25)" : "rgba(0,200,117,0.25)"}` }}>
                   <Pencil size={12} /> Edit
                 </button>
                 {confirmDel === s.id ? (
@@ -295,15 +340,22 @@ function CodeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   );
 }
 
-function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose: () => void; onSaved: () => void }) {
+function SegmentModal({ seg, apiBase, isGold, onClose, onSaved }: {
+  seg: Segment | null;
+  apiBase: string;
+  isGold: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const isEdit = !!seg;
   const [form, setForm] = useState({
     label: seg?.label ?? "",
     rewardAmount: seg ? String(parseFloat(seg.rewardAmount)) : "0",
     weight: seg?.weight ?? "10",
-    color: seg?.color ?? "#0d2a1a",
+    color: seg?.color ?? (isGold ? "#1a0d00" : "#0d2a1a"),
     sortOrder: seg ? String(seg.sortOrder) : "0",
     isActive: seg?.isActive !== false,
+    segmentType: seg?.segmentType ?? "PRIZE",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -313,7 +365,7 @@ function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose:
     setError("");
     setLoading(true);
     try {
-      await api.post("/admin/spin/segments", {
+      await api.post(apiBase, {
         id: seg?.id,
         label: form.label.trim(),
         rewardAmount: parseFloat(form.rewardAmount) || 0,
@@ -321,6 +373,7 @@ function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose:
         color: form.color,
         sortOrder: parseInt(form.sortOrder as string) || 0,
         isActive: form.isActive,
+        segmentType: form.segmentType,
       });
       onSaved();
     } catch (err: unknown) {
@@ -332,9 +385,11 @@ function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,15,13,0.88)" }} onClick={onClose}>
-      <div className="w-full max-w-md p-6 rounded-sm" style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }} onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-md p-6 rounded-sm" style={{ background: isGold ? "#1a0d00" : "#0f1c17", border: `1px solid ${isGold ? "rgba(255,215,0,0.25)" : "rgba(255,255,255,0.1)"}` }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>{isEdit ? "Edit Segment" : "New Segment"}</h3>
+          <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>
+            {isGold ? "👑 " : ""}{isEdit ? "Edit Segment" : "New Segment"}
+          </h3>
           <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
         </div>
         {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
@@ -342,13 +397,22 @@ function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose:
           <label className="flex flex-col gap-1.5">
             <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Label *</span>
             <input required value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
-              placeholder="e.g. Rs 50" className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+              placeholder="e.g. Rs 1,000" className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Segment Type</span>
+            <select value={form.segmentType} onChange={e => setForm({ ...form, segmentType: e.target.value })}
+              className="px-3 py-2.5 rounded-sm text-sm" style={INP}>
+              <option value="PRIZE">Prize (cash reward)</option>
+              <option value="BONUS_SPIN">Bonus Spin (+1 extra spin)</option>
+            </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
               <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Reward (PKR)</span>
               <input type="number" min="0" step="1" value={form.rewardAmount} onChange={e => setForm({ ...form, rewardAmount: e.target.value })}
-                className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+                disabled={form.segmentType === "BONUS_SPIN"}
+                className="px-3 py-2.5 rounded-sm text-sm disabled:opacity-40" style={INP} />
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Weight</span>
@@ -374,7 +438,7 @@ function SegmentModal({ seg, onClose, onSaved }: { seg: Segment | null; onClose:
           </div>
           <button type="submit" disabled={loading}
             className="mt-1 px-4 py-3 rounded-sm text-sm font-medium disabled:opacity-60"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
+            style={{ background: isGold ? "linear-gradient(90deg,#b8860b,#ffd700)" : "var(--color-accent)", color: "#000" }}>
             {loading ? "Saving…" : (isEdit ? "Save Changes" : "Create Segment")}
           </button>
         </form>

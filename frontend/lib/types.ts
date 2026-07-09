@@ -164,6 +164,7 @@ export interface SpinInfo {
   spinsToday: number;
   spinsRemaining: number;
   multiplier: number;
+  secondsUntilSpin: number;
 }
 
 export interface SpinResult {
