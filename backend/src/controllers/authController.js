@@ -129,9 +129,11 @@ async function getMe(req, res) {
   try {
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.phone, u.role, u."referralCode", u."createdAt",
-              w.balance, w.currency
+              w.balance, w.currency,
+              COALESCE(uc.coins, 0) AS coins
        FROM "User" u
        LEFT JOIN "Wallet" w ON w."userId" = u.id
+       LEFT JOIN "UserCoin" uc ON uc."userId" = u.id
        WHERE u.id = $1`,
       [req.user.id]
     );

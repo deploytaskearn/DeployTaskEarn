@@ -188,6 +188,13 @@ async function runMigrations() {
       "playedAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS "UserMysteryBoxPlay_userId_idx" ON "UserMysteryBoxPlay"("userId")`,
+    `CREATE TABLE IF NOT EXISTS "UserCoin" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id) UNIQUE,
+      coins INTEGER NOT NULL DEFAULT 0,
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserCoin_userId_idx" ON "UserCoin"("userId")`,
   ];
   for (const stmt of patches) {
     try {

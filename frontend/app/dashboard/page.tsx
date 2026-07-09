@@ -108,9 +108,25 @@ export default function DashboardPage() {
           <img src="/taskearn-mark.svg" alt="" style={{ width: 28, height: 28 }} />
           <span className="font-display text-lg" style={{ color: "#F5F2EA" }}>Task<span style={{ color: "#00C875" }}>Earn</span></span>
         </div>
-        <Link href="/" className="text-xs font-semibold px-4 py-2 rounded-xl" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
-          Home
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Coin badge */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: "rgba(244,200,66,0.12)",
+            border: "1px solid rgba(244,200,66,0.28)",
+            borderRadius: 99,
+            padding: "5px 11px",
+          }}>
+            <span style={{ fontSize: 15, lineHeight: 1 }}>🪙</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#F4C842", letterSpacing: 0.3 }}>
+              {user.coins ?? 0}
+            </span>
+            <span style={{ fontSize: 10, color: "rgba(244,200,66,0.6)", fontWeight: 600 }}>Coins</span>
+          </div>
+          <Link href="/" className="text-xs font-semibold px-4 py-2 rounded-xl" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
+            Home
+          </Link>
+        </div>
       </div>
 
       {/* ── Scrollable content area ── */}

@@ -9,6 +9,7 @@ export interface User {
   referralCode: string;
   balance?: string;
   currency?: string;
+  coins?: number;
   createdAt: string;
 }
 

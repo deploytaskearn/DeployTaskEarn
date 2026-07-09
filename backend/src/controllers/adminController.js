@@ -359,6 +359,21 @@ async function reviewSubmission(req, res) {
         [req.user.id, note || null, submission.rewardAmount, id]
       );
       await pool.query('UPDATE "Task" SET "completedCount" = "completedCount" + 1 WHERE id = $1', [submission.taskId]);
+
+      // Award 30 coins; every 200 coins threshold crossed = 1 bonus spin
+      const COINS_PER_TASK = 30;
+      const coinRow = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [submission.userId]);
+      const oldCoins = coinRow.rows.length ? coinRow.rows[0].coins : 0;
+      const newCoins = oldCoins + COINS_PER_TASK;
+      await pool.query(
+        `INSERT INTO "UserCoin" ("userId", coins) VALUES ($1, $2)
+         ON CONFLICT ("userId") DO UPDATE SET coins=$2, "updatedAt"=now()`,
+        [submission.userId, newCoins]
+      );
+      const bonusSpinsEarned = Math.floor(newCoins / 200) - Math.floor(oldCoins / 200);
+      for (let i = 0; i < bonusSpinsEarned; i++) {
+        await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [submission.userId]);
+      }
     } else if (action === 'REJECT') {
       await pool.query(
         `UPDATE "TaskSubmission" SET status = 'REJECTED', "reviewedById" = $1, "reviewNote" = $2, "reviewedAt" = now() WHERE id = $3`,

@@ -138,7 +138,7 @@ function WheelSVG({
         const x1 = cx + R * Math.cos(startAngle), y1 = cy + R * Math.sin(startAngle);
         const x2 = cx + R * Math.cos(endAngle),   y2 = cy + R * Math.sin(endAngle);
         const midAngle = (i * segAngle + segAngle / 2 - 90) * (Math.PI / 180);
-        const textR = R * 0.60;
+        const textR = R * 0.70;
         const tx = cx + textR * Math.cos(midAngle), ty = cy + textR * Math.sin(midAngle);
         const textRot = i * segAngle + segAngle / 2;
         const rewardAmt = parseFloat(seg.rewardAmount);
@@ -146,7 +146,7 @@ function WheelSVG({
         const isJackpot = rewardAmt >= 1000;
         const isMedium = rewardAmt >= 50 && rewardAmt < 1000;
         const isNoPrize = rewardAmt === 0 && !isBonus;
-        const textColor = isJackpot || isBonus ? theme.ringBright : isMedium ? "#d4f0c8" : isNoPrize ? "rgba(245,242,234,0.5)" : "#f0f0f0";
+        const textColor = isJackpot || isBonus ? theme.ringBright : isMedium ? "#d4f0c8" : isNoPrize ? "rgba(245,242,234,0.6)" : "#f0f0f0";
         const emoji = segmentEmoji(seg);
 
         return (
@@ -156,9 +156,9 @@ function WheelSVG({
               <path d={`M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 0 1 ${x2} ${y2} Z`} fill="none" stroke={theme.innerRing} strokeWidth="1" opacity="0.5" />
             )}
             <g transform={`rotate(${textRot},${tx},${ty})`}>
-              <text x={tx} y={ty - 9} textAnchor="middle" dominantBaseline="middle" fontSize={isBonus ? 14 : 13}>{emoji}</text>
-              <text x={tx} y={ty + 5} textAnchor="middle" dominantBaseline="middle"
-                fontSize={seg.label.length > 7 ? 7.5 : 8.5} fontWeight="800" fill={textColor}
+              <text x={tx} y={ty - 11} textAnchor="middle" dominantBaseline="middle" fontSize={isBonus ? 15 : 14}>{emoji}</text>
+              <text x={tx} y={ty + 7} textAnchor="middle" dominantBaseline="middle"
+                fontSize={seg.label.length > 7 ? 9 : 10.5} fontWeight="800" fill={textColor}
                 style={{ fontFamily: "system-ui, sans-serif" }}>
                 {seg.label}
               </text>
