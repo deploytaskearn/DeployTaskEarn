@@ -42,14 +42,14 @@ type BoxPhase = "idle" | "shaking" | "opening" | "revealed";
 
 function BoxSVG({ phase, gold }: { phase: BoxPhase; gold: boolean }) {
   const lidUp = phase === "opening" || phase === "revealed";
-  const body = gold ? "#7c3aed" : "#1d4a2e";
-  const lid  = gold ? "#4c1d95" : "#0d3a22";
+  const body = gold ? "#4c1d95" : "#1d4a2e";
+  const lid  = gold ? "#2e1065" : "#0d3a22";
   const rib  = gold ? "#c4b5fd" : "#4ade80";
   const bow  = gold ? "#ede9fe" : "#d1fae5";
-  const glow = gold ? "rgba(168,85,247,0.4)" : "rgba(0,200,117,0.4)";
+  const glow = gold ? "rgba(168,85,247,0.5)" : "rgba(0,200,117,0.4)";
   const plat = gold ? "#a855f7" : "#00C875";
   return (
-    <svg viewBox="0 0 160 180" width="180" height="202" style={{ display: "block", overflow: "visible", filter: `drop-shadow(0 0 24px ${glow})` }}>
+    <svg viewBox="0 0 160 180" width="160" height="180" style={{ display: "block", overflow: "visible", filter: `drop-shadow(0 0 24px ${glow})` }}>
       <ellipse cx="80" cy="174" rx="70" ry="14" fill={plat} opacity="0.18" />
       <ellipse cx="80" cy="174" rx="50" ry="9"  fill={plat} opacity="0.12" />
       <rect x="12" y="78" width="136" height="92" rx="10" fill={body} />
@@ -78,21 +78,16 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
   const [info, setInfo] = useState<MysteryInfo | null>(null);
   const [error, setError] = useState("");
 
-  // Free box state
   const [canPlay, setCanPlay] = useState(false);
   const [freePhase, setFreePhase] = useState<BoxPhase>("idle");
   const [freeResult, setFreeResult] = useState<OpenResult | null>(null);
   const [secondsUntilReset, setSecondsUntilReset] = useState(0);
   const freeCountdown = useCountdown(secondsUntilReset);
 
-  // Premium box state
   const [premPhase, setPremPhase] = useState<BoxPhase>("idle");
   const [premResult, setPremResult] = useState<PremiumResult | null>(null);
   const [premBuying, setPremBuying] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
-
-  // Which box is active
-  const [activeBox, setActiveBox] = useState<"free" | "premium">("free");
 
   useEffect(() => {
     api.get<MysteryInfo>("/mystery/info")
@@ -109,6 +104,8 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
   const premiumPrizes = info?.premiumPrizes ?? [];
   const premiumBoxPrice = info?.premiumBoxPrice ?? 50;
   const canAffordPremium = walletBalance >= premiumBoxPrice;
+  const freeReward = freeResult ? parseFloat(freeResult.prize.rewardAmount) : 0;
+  const premReward = premResult ? parseFloat(premResult.prize.rewardAmount) : 0;
 
   async function handleFreeOpen() {
     if (!canPlay || freePhase !== "idle") return;
@@ -160,25 +157,13 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
     }
   }
 
-  const isGold = activeBox === "premium";
-  const accent = isGold ? "#a855f7" : "#00C875";
-  const accentDim = isGold ? "rgba(168,85,247,0.12)" : "rgba(0,200,117,0.10)";
-  const accentBorder = isGold ? "rgba(168,85,247,0.3)" : "rgba(0,200,117,0.25)";
-  const bg = isGold
-    ? "radial-gradient(ellipse at 50% 20%, #2e1065 0%, #0d0520 50%, #050210 100%)"
-    : "radial-gradient(ellipse at 50% 20%, #0d3a22 0%, #061a10 50%, #020d07 100%)";
-
-  const activePhase  = isGold ? premPhase  : freePhase;
-  const activeResult = isGold ? premResult : freeResult;
-  const activeReward = activeResult ? parseFloat(activeResult.prize.rewardAmount) : 0;
-
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: bg, display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", transition: "background 0.4s ease" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "radial-gradient(ellipse at 50% 20%, #0d3a22 0%, #061a10 50%, #020d07 100%)", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto" }}>
 
       {/* Sparkles */}
       <div style={{ position: "fixed", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
-        {Array.from({ length: 14 }).map((_, i) => (
-          <div key={i} style={{ position: "absolute", left: `${(i * 19 + 7) % 92}%`, top: `${(i * 23 + 5) % 88}%`, width: 4 + (i % 4), height: 4 + (i % 4), borderRadius: "50%", background: accent, opacity: 0.3, animation: `sparkle ${2 + (i % 3) * 0.5}s ${i * 0.15}s ease-in-out infinite` }} />
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} style={{ position: "absolute", left: `${(i * 19 + 7) % 92}%`, top: `${(i * 23 + 5) % 88}%`, width: 4+(i%4), height: 4+(i%4), borderRadius: "50%", background: "#00C875", opacity: 0.3, animation: `sparkle ${2+(i%3)*0.5}s ${i*0.15}s ease-in-out infinite` }} />
         ))}
       </div>
 
@@ -187,27 +172,11 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
         {/* Header */}
         <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 0" }}>
           <div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: "#F5F2EA" }}>
-              {isGold ? "👑 Premium Box" : "🎁 Mystery Box"}
-            </div>
-            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginTop: 2 }}>
-              {isGold ? `Win up to Rs 5,000! (Rs ${premiumBoxPrice} per open)` : "1 free box daily — win cash prizes!"}
-            </div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#F5F2EA" }}>🎁 Mystery Box</div>
+            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginTop: 2 }}>1 free box daily · buy premium anytime!</div>
           </div>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 12, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <X size={18} color="#F5F2EA" />
-          </button>
-        </div>
-
-        {/* Tab switcher */}
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button onClick={() => setActiveBox("free")}
-            style={{ padding: "6px 18px", borderRadius: 99, fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer", background: activeBox === "free" ? "#00C875" : "rgba(255,255,255,0.08)", color: activeBox === "free" ? "#000" : "rgba(245,242,234,0.5)" }}>
-            🎁 Free Box
-          </button>
-          <button onClick={() => !(freePhase !== "idle") && !(premPhase !== "idle") && setActiveBox("premium")}
-            style={{ padding: "6px 18px", borderRadius: 99, fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer", background: activeBox === "premium" ? "#a855f7" : "rgba(255,255,255,0.08)", color: activeBox === "premium" ? "#fff" : "rgba(245,242,234,0.5)" }}>
-            👑 Premium Box
           </button>
         </div>
 
@@ -218,158 +187,139 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
           </div>
         )}
 
-        {/* Status chip */}
-        <div style={{ marginTop: 12, padding: "6px 20px", borderRadius: 99, background: accentDim, border: `1px solid ${accentBorder}`, fontSize: 12, fontWeight: 700, color: accent }}>
-          {isGold
-            ? `Wallet: Rs ${walletBalance.toFixed(0)}`
-            : canPlay ? "🎁 Free Box Available!" : `⏰ Next free box in ${freeCountdown.label}`}
-        </div>
+        {/* ═══════════════ FREE BOX SECTION ═══════════════ */}
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: "#00C875", marginBottom: 8 }}>FREE DAILY BOX</div>
 
-        {/* The Box */}
-        <div style={{ marginTop: 20, position: "relative" }}>
-          <div style={{
-            cursor: ((isGold && canAffordPremium && premPhase === "idle") || (!isGold && canPlay && freePhase === "idle")) ? "pointer" : "default",
-            animation: activePhase === "shaking" ? "boxShake 0.6s ease" : "none",
-            filter: ((isGold && canAffordPremium) || (!isGold && canPlay)) ? `drop-shadow(0 0 32px ${isGold ? "rgba(168,85,247,0.5)" : "rgba(0,200,117,0.4)"})` : "grayscale(0.5) opacity(0.7)",
-          }} onClick={isGold ? handlePremiumOpen : handleFreeOpen}>
-            <BoxSVG phase={activePhase} gold={isGold} />
+          <div style={{ marginBottom: 12, padding: "6px 20px", borderRadius: 99, background: "rgba(0,200,117,0.10)", border: "1px solid rgba(0,200,117,0.25)", fontSize: 12, fontWeight: 700, color: "#00C875" }}>
+            {canPlay ? "🎁 Free Box Available!" : `⏰ Next box in ${freeCountdown.label}`}
           </div>
 
-          {/* Prize reveal */}
-          {activeResult && activePhase === "revealed" && (
-            <div style={{
-              position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)",
-              padding: "10px 24px", borderRadius: 99, whiteSpace: "nowrap",
-              background: activeReward > 0 ? accentDim : "rgba(255,255,255,0.08)",
-              border: `1px solid ${activeReward > 0 ? accentBorder : "rgba(255,255,255,0.15)"}`,
-              fontSize: 18, fontWeight: 900,
-              color: activeReward > 0 ? accent : "rgba(245,242,234,0.5)",
-              animation: "resultPop 0.4s cubic-bezier(0.22,1,0.36,1)",
-            }}>
-              {activeReward > 0 ? `🎉 Rs ${activeReward.toLocaleString()}` : `😔 ${activeResult.prize.label}`}
+          <div style={{ cursor: (canPlay && freePhase === "idle") ? "pointer" : "default", animation: freePhase === "shaking" ? "boxShake 0.6s ease" : "none", filter: canPlay ? "drop-shadow(0 0 32px rgba(0,200,117,0.4))" : "grayscale(0.5) opacity(0.7)" }} onClick={handleFreeOpen}>
+            <BoxSVG phase={freePhase} gold={false} />
+          </div>
+
+          {freePhase === "idle" && (
+            <button onClick={handleFreeOpen} disabled={!canPlay}
+              style={{ marginTop: 14, padding: "14px 0", width: 260, borderRadius: 99, border: "none", cursor: canPlay ? "pointer" : "default", background: canPlay ? "linear-gradient(90deg,#059a54,#00C875,#059a54)" : "rgba(255,255,255,0.07)", color: canPlay ? "#fff" : "rgba(245,242,234,0.3)", fontSize: 14, fontWeight: 800, boxShadow: canPlay ? "0 4px 24px rgba(0,200,117,0.3)" : "none" }}>
+              {canPlay ? "🎁 Open Free Box" : "Come back tomorrow"}
+            </button>
+          )}
+          {!canPlay && freeCountdown.secs > 0 && freePhase === "idle" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <Clock size={13} color="rgba(245,242,234,0.4)" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#00C875", fontFamily: "monospace" }}>{freeCountdown.label}</span>
+            </div>
+          )}
+
+          {freeResult && freePhase === "revealed" && (
+            <div style={{ marginTop: 14, padding: "18px 28px", borderRadius: 20, textAlign: "center", maxWidth: 280, background: freeReward > 0 ? "rgba(5,25,12,0.95)" : "rgba(5,10,8,0.95)", border: `2px solid ${freeReward > 0 ? "rgba(0,200,117,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
+              {freeReward > 0 ? (
+                <>
+                  <div style={{ fontSize: 32, marginBottom: 6 }}>🎉</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: "#00C875" }}>Rs {freeReward.toLocaleString()}</div>
+                  <div style={{ fontSize: 13, color: "rgba(245,242,234,0.6)", marginTop: 4 }}>Added to wallet!</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>😔</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#F5F2EA" }}>Better Luck Tomorrow!</div>
+                  <div style={{ fontSize: 11, color: "rgba(245,242,234,0.4)", marginTop: 4 }}>Try Premium Box below for bigger prizes</div>
+                </>
+              )}
+              {secondsUntilReset > 0 && (
+                <div style={{ marginTop: 8, fontSize: 11, color: "rgba(245,242,234,0.4)" }}>
+                  Next free box in <span style={{ fontFamily: "monospace", color: "#00C875", fontWeight: 700 }}>{freeCountdown.label}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {prizes.length > 0 && (
+            <div style={{ width: "calc(100% - 40px)", marginTop: 14, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#00C875", letterSpacing: 2, marginBottom: 7 }}>FREE BOX PRIZES</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {prizes.map(p => (
+                  <span key={p.id} style={{ padding: "4px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: "rgba(0,200,117,0.10)", border: "1px solid rgba(0,200,117,0.2)", color: parseFloat(p.rewardAmount) > 0 ? "#00C875" : "rgba(245,242,234,0.3)" }}>
+                    {parseFloat(p.rewardAmount) > 0 ? `Rs ${parseFloat(p.rewardAmount).toLocaleString()}` : p.label}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* FREE BOX controls */}
-        {!isGold && (
-          <>
-            {freePhase === "idle" && (
-              <button onClick={handleFreeOpen} disabled={!canPlay}
-                style={{
-                  marginTop: 20, padding: "14px 0", width: 260, borderRadius: 99, border: "none",
-                  cursor: canPlay ? "pointer" : "default",
-                  background: canPlay ? "linear-gradient(90deg,#059a54,#00C875,#059a54)" : "rgba(255,255,255,0.07)",
-                  color: canPlay ? "#fff" : "rgba(245,242,234,0.3)",
-                  fontSize: 15, fontWeight: 800,
-                  boxShadow: canPlay ? "0 4px 24px rgba(0,200,117,0.3)" : "none",
-                }}>
-                {canPlay ? "🎁 Open Free Box" : "Come back tomorrow"}
-              </button>
-            )}
-            {!canPlay && freeCountdown.secs > 0 && freePhase === "idle" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                <Clock size={13} color="rgba(245,242,234,0.4)" />
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#00C875", fontFamily: "monospace" }}>{freeCountdown.label}</span>
-              </div>
-            )}
-            {freeResult && freePhase === "revealed" && (
-              <div style={{ marginTop: 16, padding: "20px 28px", borderRadius: 20, textAlign: "center", width: "calc(100% - 40px)", background: activeReward > 0 ? "rgba(5,25,12,0.95)" : "rgba(5,10,8,0.95)", border: `2px solid ${activeReward > 0 ? "rgba(0,200,117,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
-                {activeReward > 0 ? (
-                  <>
-                    <div style={{ fontSize: 36, marginBottom: 6 }}>🎉</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#00C875" }}>Rs {activeReward.toLocaleString()}</div>
-                    <div style={{ fontSize: 13, color: "rgba(245,242,234,0.6)", marginTop: 4 }}>Added to your wallet!</div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 32, marginBottom: 6 }}>😔</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#F5F2EA" }}>Better Luck Tomorrow!</div>
-                    <div style={{ fontSize: 12, color: "rgba(245,242,234,0.4)", marginTop: 4 }}>Try the Premium Box for bigger prizes</div>
-                  </>
-                )}
-                {secondsUntilReset > 0 && (
-                  <div style={{ marginTop: 10, fontSize: 12, color: "rgba(245,242,234,0.4)" }}>
-                    Next free box in <span style={{ fontFamily: "monospace", color: "#00C875", fontWeight: 700 }}>{freeCountdown.label}</span>
-                  </div>
-                )}
-              </div>
-            )}
-            {/* Free prize list */}
-            {prizes.length > 0 && (
-              <div style={{ width: "calc(100% - 40px)", marginTop: 16, padding: "12px 16px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#00C875", letterSpacing: 2, marginBottom: 8 }}>FREE BOX PRIZES</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {prizes.map(p => (
-                    <span key={p.id} style={{ padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: "rgba(0,200,117,0.10)", border: "1px solid rgba(0,200,117,0.2)", color: parseFloat(p.rewardAmount) > 0 ? "#00C875" : "rgba(245,242,234,0.3)" }}>
-                      {parseFloat(p.rewardAmount) > 0 ? `Rs ${parseFloat(p.rewardAmount).toLocaleString()}` : p.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        {/* ═══════════════ DIVIDER ═══════════════ */}
+        <div style={{ width: "calc(100% - 40px)", margin: "20px 0 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, height: 1, background: "rgba(168,85,247,0.25)" }} />
+          <span style={{ fontSize: 12, fontWeight: 800, color: "#a855f7", letterSpacing: 1, whiteSpace: "nowrap" }}>👑 PREMIUM BOX</span>
+          <div style={{ flex: 1, height: 1, background: "rgba(168,85,247,0.25)" }} />
+        </div>
 
-        {/* PREMIUM BOX controls */}
-        {isGold && (
-          <>
-            {premPhase === "idle" && (
-              <>
-                <button onClick={handlePremiumOpen} disabled={!canAffordPremium || premBuying}
-                  style={{
-                    marginTop: 20, padding: "14px 0", width: 260, borderRadius: 99, border: "none",
-                    cursor: canAffordPremium ? "pointer" : "default",
-                    background: canAffordPremium ? "linear-gradient(90deg,#7c3aed,#a855f7,#7c3aed)" : "rgba(255,255,255,0.07)",
-                    color: canAffordPremium ? "#fff" : "rgba(245,242,234,0.3)",
-                    fontSize: 15, fontWeight: 800,
-                    boxShadow: canAffordPremium ? "0 4px 24px rgba(168,85,247,0.35)" : "none",
-                  }}>
-                  {premBuying ? "Opening…" : `✨ Buy & Open (Rs ${premiumBoxPrice})`}
-                </button>
-                {!canAffordPremium && (
-                  <div style={{ marginTop: 8, fontSize: 11, color: "rgba(245,242,234,0.4)", textAlign: "center" }}>
-                    Need Rs {Math.max(0, premiumBoxPrice - walletBalance).toFixed(0)} more. Deposit to unlock.
-                  </div>
-                )}
-              </>
-            )}
-            {premResult && premPhase === "revealed" && (
-              <div style={{ marginTop: 16, padding: "20px 28px", borderRadius: 20, textAlign: "center", width: "calc(100% - 40px)", background: activeReward > 0 ? "rgba(20,5,50,0.95)" : "rgba(10,5,20,0.95)", border: `2px solid ${activeReward > 0 ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
-                {activeReward > 0 ? (
-                  <>
-                    <div style={{ fontSize: 36, marginBottom: 6 }}>🎉</div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#a855f7" }}>Rs {activeReward.toLocaleString()}</div>
-                    <div style={{ fontSize: 13, color: "rgba(245,242,234,0.6)", marginTop: 4 }}>Added to your wallet!</div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 32, marginBottom: 6 }}>😔</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#F5F2EA" }}>Better Luck Next Time!</div>
-                    <div style={{ fontSize: 12, color: "rgba(245,242,234,0.4)", marginTop: 4 }}>Try again for a chance at Rs 5,000!</div>
-                  </>
-                )}
-                <button onClick={() => { setPremResult(null); setPremPhase("idle"); }}
-                  style={{ marginTop: 14, padding: "8px 20px", borderRadius: 99, background: "linear-gradient(90deg,#7c3aed,#a855f7)", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#fff" }}>
-                  Open Again
-                </button>
-              </div>
-            )}
-            {/* Premium prize list */}
-            {premiumPrizes.length > 0 && (
-              <div style={{ width: "calc(100% - 40px)", marginTop: 16, padding: "12px 16px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", letterSpacing: 2, marginBottom: 8 }}>PREMIUM PRIZES</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {premiumPrizes.map(p => (
-                    <span key={p.id} style={{ padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: parseFloat(p.rewardAmount) > 0 ? "#c084fc" : "rgba(245,242,234,0.3)" }}>
-                      {parseFloat(p.rewardAmount) > 0 ? `Rs ${parseFloat(p.rewardAmount).toLocaleString()}` : p.label}
-                    </span>
-                  ))}
+        {/* ═══════════════ PREMIUM BOX SECTION ═══════════════ */}
+        <div style={{ width: "calc(100% - 40px)", borderRadius: 20, padding: "16px", background: "rgba(20,5,50,0.8)", border: "1.5px solid rgba(168,85,247,0.3)" }}>
+          <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)", marginBottom: 10, textAlign: "center" }}>
+            Win up to Rs 5,000! · <span style={{ color: "#a855f7", fontWeight: 700 }}>Rs {premiumBoxPrice} per box</span>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+            <div style={{ cursor: (canAffordPremium && premPhase === "idle") ? "pointer" : "default", animation: premPhase === "shaking" ? "boxShake 0.6s ease" : "none", filter: canAffordPremium ? "drop-shadow(0 0 24px rgba(168,85,247,0.5))" : "grayscale(0.5) opacity(0.7)" }} onClick={handlePremiumOpen}>
+              <BoxSVG phase={premPhase} gold={true} />
+            </div>
+          </div>
+
+          <div style={{ textAlign: "center", marginBottom: 10, fontSize: 12, color: "rgba(245,242,234,0.5)" }}>
+            Wallet: <span style={{ color: canAffordPremium ? "#a855f7" : "#E8633A", fontWeight: 800, fontSize: 14 }}>Rs {walletBalance.toFixed(0)}</span>
+          </div>
+
+          {premPhase === "idle" && (
+            <>
+              <button onClick={handlePremiumOpen} disabled={!canAffordPremium || premBuying}
+                style={{ display: "block", margin: "0 auto", padding: "14px 0", width: "100%", borderRadius: 14, border: "none", cursor: canAffordPremium ? "pointer" : "default", background: canAffordPremium ? "linear-gradient(90deg,#7c3aed,#a855f7,#7c3aed)" : "rgba(255,255,255,0.07)", color: canAffordPremium ? "#fff" : "rgba(245,242,234,0.3)", fontSize: 14, fontWeight: 800, boxShadow: canAffordPremium ? "0 4px 24px rgba(168,85,247,0.35)" : "none" }}>
+                {premBuying ? "Opening…" : `✨ Buy & Open (Rs ${premiumBoxPrice})`}
+              </button>
+              {!canAffordPremium && (
+                <div style={{ marginTop: 8, fontSize: 11, color: "rgba(245,242,234,0.4)", textAlign: "center" }}>
+                  Need Rs {Math.max(0, premiumBoxPrice - walletBalance).toFixed(0)} more in wallet to unlock
                 </div>
+              )}
+            </>
+          )}
+
+          {premResult && premPhase === "revealed" && (
+            <div style={{ marginTop: 12, padding: "16px 20px", borderRadius: 16, textAlign: "center", background: premReward > 0 ? "rgba(20,5,50,0.95)" : "rgba(10,5,20,0.95)", border: `2px solid ${premReward > 0 ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
+              {premReward > 0 ? (
+                <>
+                  <div style={{ fontSize: 32, marginBottom: 6 }}>🎉</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: "#a855f7" }}>Rs {premReward.toLocaleString()}</div>
+                  <div style={{ fontSize: 13, color: "rgba(245,242,234,0.6)", marginTop: 4 }}>Added to wallet!</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>😔</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#F5F2EA" }}>Better Luck Next Time!</div>
+                </>
+              )}
+              <button onClick={() => { setPremResult(null); setPremPhase("idle"); }}
+                style={{ marginTop: 12, padding: "8px 20px", borderRadius: 99, background: "linear-gradient(90deg,#7c3aed,#a855f7)", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#fff" }}>
+                Open Again
+              </button>
+            </div>
+          )}
+
+          {premiumPrizes.length > 0 && (
+            <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", letterSpacing: 2, marginBottom: 7 }}>PREMIUM PRIZES</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {premiumPrizes.map(p => (
+                  <span key={p.id} style={{ padding: "4px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: parseFloat(p.rewardAmount) > 0 ? "#c084fc" : "rgba(245,242,234,0.3)" }}>
+                    {parseFloat(p.rewardAmount) > 0 ? `Rs ${parseFloat(p.rewardAmount).toLocaleString()}` : p.label}
+                  </span>
+                ))}
               </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </div>
 
       </div>
 

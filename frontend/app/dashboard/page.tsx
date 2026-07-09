@@ -492,6 +492,10 @@ export default function DashboardPage() {
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#0a2a18", border: "1px solid #1a4a2e", fontSize: 14, fontWeight: 700, color: "#00C875" }}>
                         <CheckCircle2 size={16} color="#00C875" /> Plan Activated
                       </div>
+                    ) : myPlan && !myPlanIds.includes(plan.id) ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 13, color: "rgba(245,242,234,0.35)" }}>
+                        <Lock size={13} /> You have an active plan
+                      </div>
                     ) : isSoldOut ? (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#111", fontSize: 14, color: "#444" }}>
                         <Lock size={13} /> Sold out

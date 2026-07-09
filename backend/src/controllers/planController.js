@@ -118,13 +118,16 @@ async function purchasePlan(req, res) {
       return res.status(422).json({ error: 'This plan is sold out. No more slots available.' });
     }
 
-    // Prevent activating the same plan twice
-    const alreadyActive = await pool.query(
-      'SELECT 1 FROM "UserPlan" WHERE "userId" = $1 AND "planId" = $2',
-      [userId, planId]
+    // Only 1 active plan allowed at a time
+    const anyActive = await pool.query(
+      `SELECT up.id, p.name FROM "UserPlan" up JOIN "Plan" p ON p.id = up."planId"
+       WHERE up."userId" = $1 AND up.status = 'ACTIVE' LIMIT 1`,
+      [userId]
     );
-    if (alreadyActive.rows.length > 0) {
-      return res.status(422).json({ error: 'You have already activated this plan.' });
+    if (anyActive.rows.length > 0) {
+      return res.status(422).json({
+        error: `You already have the "${anyActive.rows[0].name}" plan active. It must expire before you can buy a new one.`,
+      });
     }
 
     // Debit wallet
