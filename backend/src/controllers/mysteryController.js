@@ -2,7 +2,7 @@ const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
 const DAILY_LIMIT = 1;
-const PREMIUM_BOX_PRICE = 50; // Rs — cost to buy one premium mystery box open
+const PREMIUM_BOX_PRICE = 300; // Rs — cost to buy one premium mystery box open
 
 async function getSecondsUntilNextPlay(userId) {
   const last = await pool.query(

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Clock } from "lucide-react";
+import { X, Clock, Crown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
 interface Prize { id: string; label: string; rewardAmount: string; }
@@ -21,10 +22,6 @@ interface OpenResult {
   secondsUntilReset: number;
 }
 
-interface PremiumResult {
-  prize: { id: string; label: string; rewardAmount: string };
-  walletBalance: number;
-}
 
 function useCountdown(initial: number) {
   const [secs, setSecs] = useState(initial);
@@ -75,6 +72,7 @@ function BoxSVG({ phase, gold }: { phase: BoxPhase; gold: boolean }) {
 }
 
 export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin: () => void }) {
+  const router = useRouter();
   const [info, setInfo] = useState<MysteryInfo | null>(null);
   const [error, setError] = useState("");
 
@@ -83,10 +81,6 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
   const [freeResult, setFreeResult] = useState<OpenResult | null>(null);
   const [secondsUntilReset, setSecondsUntilReset] = useState(0);
   const freeCountdown = useCountdown(secondsUntilReset);
-
-  const [premPhase, setPremPhase] = useState<BoxPhase>("idle");
-  const [premResult, setPremResult] = useState<PremiumResult | null>(null);
-  const [premBuying, setPremBuying] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
@@ -101,11 +95,7 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
   }, []);
 
   const prizes = info?.prizes ?? [];
-  const premiumPrizes = info?.premiumPrizes ?? [];
-  const premiumBoxPrice = info?.premiumBoxPrice ?? 50;
-  const canAffordPremium = walletBalance >= premiumBoxPrice;
   const freeReward = freeResult ? parseFloat(freeResult.prize.rewardAmount) : 0;
-  const premReward = premResult ? parseFloat(premResult.prize.rewardAmount) : 0;
 
   async function handleFreeOpen() {
     if (!canPlay || freePhase !== "idle") return;
@@ -126,34 +116,6 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to open.";
       setError(msg);
       setFreePhase("idle");
-    }
-  }
-
-  async function handlePremiumOpen() {
-    if (premBuying || premPhase !== "idle") return;
-    if (!canAffordPremium) {
-      setError(`You need Rs ${premiumBoxPrice} in your wallet. Current: Rs ${walletBalance.toFixed(0)}.`);
-      return;
-    }
-    setPremBuying(true);
-    setPremPhase("shaking");
-    setPremResult(null);
-    setError("");
-    try {
-      const res = await api.post<PremiumResult>("/mystery/buy-premium");
-      setTimeout(() => setPremPhase("opening"), 700);
-      setTimeout(() => {
-        setPremResult(res.data);
-        setPremPhase("revealed");
-        setWalletBalance(res.data.walletBalance ?? 0);
-        if (parseFloat(res.data.prize.rewardAmount) > 0) onWin();
-        setPremBuying(false);
-      }, 1500);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed.";
-      setError(msg);
-      setPremPhase("idle");
-      setPremBuying(false);
     }
   }
 
@@ -249,76 +211,23 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
           )}
         </div>
 
-        {/* ═══════════════ DIVIDER ═══════════════ */}
-        <div style={{ width: "calc(100% - 40px)", margin: "20px 0 16px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(168,85,247,0.25)" }} />
-          <span style={{ fontSize: 12, fontWeight: 800, color: "#a855f7", letterSpacing: 1, whiteSpace: "nowrap" }}>👑 PREMIUM BOX</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(168,85,247,0.25)" }} />
-        </div>
-
-        {/* ═══════════════ PREMIUM BOX SECTION ═══════════════ */}
-        <div style={{ width: "calc(100% - 40px)", borderRadius: 20, padding: "16px", background: "rgba(20,5,50,0.8)", border: "1.5px solid rgba(168,85,247,0.3)" }}>
-          <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)", marginBottom: 10, textAlign: "center" }}>
-            Win up to Rs 5,000! · <span style={{ color: "#a855f7", fontWeight: 700 }}>Rs {premiumBoxPrice} per box</span>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-            <div style={{ cursor: (canAffordPremium && premPhase === "idle") ? "pointer" : "default", animation: premPhase === "shaking" ? "boxShake 0.6s ease" : "none", filter: canAffordPremium ? "drop-shadow(0 0 24px rgba(168,85,247,0.5))" : "grayscale(0.5) opacity(0.7)" }} onClick={handlePremiumOpen}>
-              <BoxSVG phase={premPhase} gold={true} />
-            </div>
-          </div>
-
-          <div style={{ textAlign: "center", marginBottom: 10, fontSize: 12, color: "rgba(245,242,234,0.5)" }}>
-            Wallet: <span style={{ color: canAffordPremium ? "#a855f7" : "#E8633A", fontWeight: 800, fontSize: 14 }}>Rs {walletBalance.toFixed(0)}</span>
-          </div>
-
-          {premPhase === "idle" && (
-            <>
-              <button onClick={handlePremiumOpen} disabled={!canAffordPremium || premBuying}
-                style={{ display: "block", margin: "0 auto", padding: "14px 0", width: "100%", borderRadius: 14, border: "none", cursor: canAffordPremium ? "pointer" : "default", background: canAffordPremium ? "linear-gradient(90deg,#7c3aed,#a855f7,#7c3aed)" : "rgba(255,255,255,0.07)", color: canAffordPremium ? "#fff" : "rgba(245,242,234,0.3)", fontSize: 14, fontWeight: 800, boxShadow: canAffordPremium ? "0 4px 24px rgba(168,85,247,0.35)" : "none" }}>
-                {premBuying ? "Opening…" : `✨ Buy & Open (Rs ${premiumBoxPrice})`}
-              </button>
-              {!canAffordPremium && (
-                <div style={{ marginTop: 8, fontSize: 11, color: "rgba(245,242,234,0.4)", textAlign: "center" }}>
-                  Need Rs {Math.max(0, premiumBoxPrice - walletBalance).toFixed(0)} more in wallet to unlock
-                </div>
-              )}
-            </>
-          )}
-
-          {premResult && premPhase === "revealed" && (
-            <div style={{ marginTop: 12, padding: "16px 20px", borderRadius: 16, textAlign: "center", background: premReward > 0 ? "rgba(20,5,50,0.95)" : "rgba(10,5,20,0.95)", border: `2px solid ${premReward > 0 ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
-              {premReward > 0 ? (
-                <>
-                  <div style={{ fontSize: 32, marginBottom: 6 }}>🎉</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: "#a855f7" }}>Rs {premReward.toLocaleString()}</div>
-                  <div style={{ fontSize: 13, color: "rgba(245,242,234,0.6)", marginTop: 4 }}>Added to wallet!</div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>😔</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#F5F2EA" }}>Better Luck Next Time!</div>
-                </>
-              )}
-              <button onClick={() => { setPremResult(null); setPremPhase("idle"); }}
-                style={{ marginTop: 12, padding: "8px 20px", borderRadius: 99, background: "linear-gradient(90deg,#7c3aed,#a855f7)", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#fff" }}>
-                Open Again
-              </button>
-            </div>
-          )}
-
-          {premiumPrizes.length > 0 && (
-            <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", letterSpacing: 2, marginBottom: 7 }}>PREMIUM PRIZES</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {premiumPrizes.map(p => (
-                  <span key={p.id} style={{ padding: "4px 9px", borderRadius: 8, fontSize: 11, fontWeight: 700, background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: parseFloat(p.rewardAmount) > 0 ? "#c084fc" : "rgba(245,242,234,0.3)" }}>
-                    {parseFloat(p.rewardAmount) > 0 ? `Rs ${parseFloat(p.rewardAmount).toLocaleString()}` : p.label}
-                  </span>
-                ))}
+        {/* ═══════════════ PREMIUM BOX BANNER ═══════════════ */}
+        <div style={{ width: "calc(100% - 40px)", margin: "20px 0 0" }}>
+          <button
+            onClick={() => { onClose(); router.push("/dashboard/premium-box"); }}
+            style={{ width: "100%", padding: "18px 20px", borderRadius: 20, border: "1.5px solid rgba(168,85,247,0.4)", background: "rgba(20,5,50,0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,#7c3aed,#a855f7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Crown size={22} color="#fff" />
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#ede9fe" }}>👑 Premium Box</div>
+                <div style={{ fontSize: 11, color: "rgba(196,181,253,0.6)", marginTop: 2 }}>Rs 300 · Win up to Rs 5,000</div>
               </div>
             </div>
-          )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#a855f7", whiteSpace: "nowrap" }}>Open →</div>
+          </button>
         </div>
 
       </div>
