@@ -185,6 +185,10 @@ async function updateProfile(req, res) {
 
 async function getMe(req, res) {
   try {
+    // Admin accounts must never appear in the user portal
+    if (req.user.role === 'ADMIN') {
+      return res.status(403).json({ error: 'Admin accounts cannot access the user portal.' });
+    }
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.phone, u.role, u."referralCode", u."createdAt",
               w.balance, w.currency,

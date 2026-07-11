@@ -21,7 +21,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    const status = error.response?.status;
+    if ((status === 401 || status === 403) && typeof window !== "undefined") {
       localStorage.removeItem("taskearn_token");
     }
     return Promise.reject(error);
