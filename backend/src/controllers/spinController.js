@@ -1,7 +1,7 @@
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
-const GOLD_SPIN_PRICE = 100; // Rs — cost to buy one gold spin
+const GOLD_SPIN_PRICE = 500; // Rs — cost to buy one gold spin
 const PREMIUM_BOX_PRICE = 50; // Rs — used by mystery controller
 
 async function getSecondsUntilNextSpin(userId) {
