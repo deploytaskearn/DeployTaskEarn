@@ -40,7 +40,7 @@ function ProofModal({
     }
   }
 
-  const canSubmit = proofText.trim().length > 0 || file !== null;
+  const canSubmit = file !== null;
 
   return (
     <div
@@ -99,25 +99,6 @@ function ProofModal({
             accept="image/jpeg,image/png,image/webp"
             className="hidden"
             onChange={pickFile}
-          />
-        </div>
-
-        {/* Text proof */}
-        <div>
-          <p className="text-xs font-semibold mb-2" style={{ color: "rgba(245,242,234,0.6)" }}>
-            Description <span style={{ color: "rgba(245,242,234,0.3)" }}>(what you did)</span>
-          </p>
-          <textarea
-            value={proofText}
-            onChange={e => setProofText(e.target.value)}
-            rows={3}
-            placeholder="Briefly describe how you completed this task…"
-            className="w-full rounded-xl px-4 py-3 text-sm resize-none outline-none"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "var(--color-surface)",
-            }}
           />
         </div>
 
