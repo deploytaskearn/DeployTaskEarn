@@ -39,13 +39,14 @@ const NAV = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { admin: user, loading, logout } = useAdminAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/secure-mgmt/login");
     }
   }, [user, loading, router]);
-  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (loading || !user) {
