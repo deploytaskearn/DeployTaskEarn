@@ -76,18 +76,14 @@ async function getTask(req, res) {
   }
 }
 
-const submitSchema = z.object({
-  proofText: z.string().optional(),
-});
+const COINS_PER_TASK = 10;
+const COIN_MILESTONE = 500;
+const SPINS_PER_MILESTONE = 3;
 
-/**
- * User submits proof of completing a MANUAL task. Goes to PENDING
- * for admin review (admin approval triggers the wallet credit).
- */
 async function submitTask(req, res) {
   try {
     const taskId = req.params.id;
-    const data = submitSchema.parse(req.body);
+    const userId = req.user.id;
 
     const taskResult = await pool.query('SELECT * FROM "Task" WHERE id = $1', [taskId]);
     if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
@@ -99,30 +95,49 @@ async function submitTask(req, res) {
 
     const existing = await pool.query(
       'SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2',
-      [taskId, req.user.id]
+      [taskId, userId]
     );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'You already submitted this task' });
+      return res.status(409).json({ error: 'You already completed this task' });
     }
 
-    const proofFileUrl = req.file ? `/uploads/proofs/${req.file.filename}` : null;
+    const rewardAmount = parseFloat(task.rewardAmount);
 
-    if (task.requiresProof && !proofFileUrl && !data.proofText) {
-      return res.status(400).json({ error: 'Proof (text or file) is required for this task' });
-    }
-
+    // Auto-approve and credit wallet immediately
     const result = await pool.query(
-      `INSERT INTO "TaskSubmission" (id, "taskId", "userId", "proofText", "proofFileUrl", status, "createdAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'PENDING', now())
+      `INSERT INTO "TaskSubmission"
+         (id, "taskId", "userId", status, "rewardPaid", "autoApproved", "createdAt", "reviewedAt")
+       VALUES (gen_random_uuid(), $1, $2, 'APPROVED', $3, true, now(), now())
        RETURNING *`,
-      [taskId, req.user.id, data.proofText || null, proofFileUrl]
+      [taskId, userId, rewardAmount]
     );
 
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    if (err.name === 'ZodError') {
-      return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    await walletService.credit(userId, rewardAmount, 'TASK_EARNING', result.rows[0].id, `Task completed: ${task.title}`);
+
+    // Award coins (10 per task, every 500 = 3 bonus spins)
+    const coinRow = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [userId]);
+    const oldCoins = coinRow.rows.length ? coinRow.rows[0].coins : 0;
+    const newCoins = oldCoins + COINS_PER_TASK;
+    await pool.query(
+      `INSERT INTO "UserCoin" ("userId", coins) VALUES ($1, $2)
+       ON CONFLICT ("userId") DO UPDATE SET coins=$2, "updatedAt"=now()`,
+      [userId, newCoins]
+    );
+    const milestonesEarned = Math.floor(newCoins / COIN_MILESTONE) - Math.floor(oldCoins / COIN_MILESTONE);
+    for (let i = 0; i < milestonesEarned * SPINS_PER_MILESTONE; i++) {
+      await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [userId]);
     }
+
+    await pool.query('UPDATE "Task" SET "completedCount" = "completedCount" + 1 WHERE id = $1', [taskId]);
+
+    res.status(201).json({
+      submission: result.rows[0],
+      rewardAmount,
+      coinsEarned: COINS_PER_TASK,
+      totalCoins: newCoins,
+      bonusSpinsEarned: milestonesEarned * SPINS_PER_MILESTONE,
+    });
+  } catch (err) {
     console.error('submitTask error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -379,7 +379,7 @@ export default function DashboardPage() {
       {tab === "tasks" && (
         <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Tasks</h2>
-          <TasksTab />
+          <TasksTab onRewardEarned={refreshBalance} />
         </div>
       )}
 

@@ -1,29 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { Task } from "@/lib/types";
-import { CheckCircle2, Clock, ExternalLink, Upload, Trophy } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { CheckCircle2, ExternalLink, Trophy, Zap } from "lucide-react";
 
 const CARD = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" };
 
-export function TasksTab() {
+interface CompletionResult {
+  rewardAmount: number;
+  coinsEarned: number;
+  bonusSpinsEarned: number;
+}
+
+export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const router = useRouter();
+  // per-task state: submitting | done+result
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [done, setDone] = useState<Record<string, CompletionResult>>({});
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
-    api.get("/tasks").then((res) => setTasks(res.data)).catch(() => {}).finally(() => setLoading(false));
-  }
+    api.get("/tasks").then((r) => setTasks(r.data)).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function completeTask(task: Task) {
+    if (submitting[task.id] || done[task.id] || task.alreadySubmitted) return;
+    setSubmitting(s => ({ ...s, [task.id]: true }));
+    try {
+      const r = await api.post<CompletionResult>(`/tasks/${task.id}/submit`, {});
+      setDone(d => ({ ...d, [task.id]: r.data }));
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true } : t));
+      onRewardEarned?.();
+    } catch {
+      // already submitted or other error — reload to sync state
+      load();
+    } finally {
+      setSubmitting(s => ({ ...s, [task.id]: false }));
+    }
+  }
 
   if (loading) {
     return <div className="py-12 text-center" style={{ color: "rgba(245,242,234,0.5)" }}>Loading tasks…</div>;
@@ -45,16 +67,12 @@ export function TasksTab() {
         <Trophy size={32} style={{ color: "rgba(245,242,234,0.2)" }} />
         <p className="text-sm font-semibold" style={{ color: "var(--color-surface)" }}>No tasks available</p>
         <p className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Activate a plan to unlock tasks and start earning.</p>
-        <button onClick={() => router.push("/dashboard")} className="mt-2 px-5 py-2.5 rounded-xl text-xs font-semibold" style={{ background: "var(--color-accent)", color: "#000" }}>
-          View Plans
-        </button>
       </div>
     );
   }
 
   return (
     <>
-      {/* Free Tasks */}
       {freeTasks.length > 0 && (
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -65,13 +83,16 @@ export function TasksTab() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             {freeTasks.map(t => (
-              <TaskCard key={t.id} task={t} onSubmit={() => setActiveTask(t)} />
+              <TaskCard key={t.id} task={t}
+                submitting={!!submitting[t.id]}
+                result={done[t.id] ?? null}
+                onComplete={() => completeTask(t)}
+              />
             ))}
           </div>
         </section>
       )}
 
-      {/* Plan-specific tasks */}
       {planGroups.map(group => (
         <section key={group.name} className="mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -84,130 +105,95 @@ export function TasksTab() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             {group.tasks.map(t => (
-              <TaskCard key={t.id} task={t} onSubmit={() => setActiveTask(t)} />
+              <TaskCard key={t.id} task={t}
+                submitting={!!submitting[t.id]}
+                result={done[t.id] ?? null}
+                onComplete={() => completeTask(t)}
+              />
             ))}
           </div>
         </section>
       ))}
-
-      {activeTask && (
-        <SubmitModal task={activeTask} onClose={() => setActiveTask(null)} onSubmitted={() => { setActiveTask(null); load(); }} />
-      )}
     </>
   );
 }
 
-function TaskCard({ task, onSubmit }: { task: Task; onSubmit: () => void }) {
-  return (
-    <div className="p-6 rounded-xl flex flex-col" style={CARD}>
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <h3 className="font-display text-lg leading-snug" style={{ color: "var(--color-surface)" }}>{task.title}</h3>
-        <span className="font-mono-tabular text-sm shrink-0" style={{ color: "var(--color-accent)" }}>
-          ₨{parseFloat(task.rewardAmount).toFixed(0)}
-        </span>
-      </div>
-      {task.categoryName && (
-        <span className="text-xs uppercase tracking-wide mb-3" style={{ color: "rgba(245,242,234,0.4)" }}>{task.categoryName}</span>
-      )}
-      <p className="text-sm leading-relaxed mb-4 flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
+function TaskCard({
+  task, submitting, result, onComplete,
+}: {
+  task: Task;
+  submitting: boolean;
+  result: CompletionResult | null;
+  onComplete: () => void;
+}) {
+  const isDone = task.alreadySubmitted || !!result;
 
-      {task.alreadySubmitted ? (
-        <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-accent)" }}>
-          <CheckCircle2 size={16} /> Submitted — awaiting review
+  return (
+    <div className="p-5 rounded-xl flex flex-col gap-3" style={{
+      ...CARD,
+      border: result ? "1px solid rgba(0,200,117,0.3)" : CARD.border,
+      background: result ? "rgba(0,200,117,0.04)" : CARD.background,
+    }}>
+      {/* Title + reward */}
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-display text-base leading-snug" style={{ color: "var(--color-surface)" }}>
+          {task.title}
+        </h3>
+        <div className="flex flex-col items-end shrink-0 gap-0.5">
+          <span className="font-mono-tabular text-sm font-bold" style={{ color: "#00C875" }}>
+            +Rs{parseFloat(task.rewardAmount).toFixed(0)}
+          </span>
+          <span className="text-xs" style={{ color: "rgba(244,200,66,0.8)" }}>+10 🪙</span>
         </div>
-      ) : task.externalUrl ? (
-        <div className="flex flex-col gap-2">
-          <a href={task.externalUrl.startsWith("http") ? task.externalUrl : `https://${task.externalUrl}`}
-            target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
-            Open Link <ExternalLink size={14} />
-          </a>
-          <button onClick={onSubmit}
-            className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
-            style={{ background: "rgba(255,255,255,0.07)", color: "var(--color-surface)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <Upload size={14} /> Submit Screenshot
-          </button>
+      </div>
+
+      {task.categoryName && (
+        <span className="text-xs uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.4)" }}>{task.categoryName}</span>
+      )}
+
+      <p className="text-sm leading-relaxed flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
+
+      {/* External link if present */}
+      {task.externalUrl && !isDone && (
+        <a href={task.externalUrl.startsWith("http") ? task.externalUrl : `https://${task.externalUrl}`}
+          target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
+          style={{ background: "rgba(0,200,117,0.1)", color: "#00C875", border: "1px solid rgba(0,200,117,0.2)" }}>
+          Open Task Link <ExternalLink size={14} />
+        </a>
+      )}
+
+      {/* CTA / result */}
+      {result ? (
+        <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(0,200,117,0.1)", border: "1px solid rgba(0,200,117,0.25)" }}>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <CheckCircle2 size={16} color="#00C875" />
+            <span className="text-sm font-bold" style={{ color: "#00C875" }}>Task Completed!</span>
+          </div>
+          <div className="flex items-center justify-center gap-4 text-xs" style={{ color: "rgba(245,242,234,0.7)" }}>
+            <span>💰 Rs{result.rewardAmount.toFixed(0)} added</span>
+            <span>🪙 {result.coinsEarned} coins</span>
+            {result.bonusSpinsEarned > 0 && <span>🎡 +{result.bonusSpinsEarned} spins!</span>}
+          </div>
+        </div>
+      ) : isDone ? (
+        <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg" style={{ background: "rgba(0,200,117,0.06)", color: "#00C875" }}>
+          <CheckCircle2 size={15} /> Already completed
         </div>
       ) : (
-        <button onClick={onSubmit}
-          className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
-          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
-          <Upload size={14} /> Submit Screenshot
+        <button
+          onClick={onComplete}
+          disabled={submitting}
+          className="inline-flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg disabled:opacity-50"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          {submitting ? (
+            <><span className="animate-spin inline-block">⟳</span> Processing…</>
+          ) : (
+            <><Zap size={15} /> Complete Task</>
+          )}
         </button>
       )}
-    </div>
-  );
-}
-
-function SubmitModal({ task, onClose, onSubmitted }: { task: Task; onClose: () => void; onSubmitted: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) { setError("Please select a screenshot to submit."); return; }
-    setError("");
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append("proofFile", file);
-      await api.post(`/tasks/${task.id}/submit`, formData, { headers: { "Content-Type": "multipart/form-data" } });
-      onSubmitted();
-    } catch (err: unknown) {
-      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Submission failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,15,13,0.88)" }} onClick={onClose}>
-      <div className="w-full max-w-md p-6 rounded-2xl" style={{ background: "#111A14", border: "1px solid rgba(255,255,255,0.1)" }} onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-display text-xl mb-1" style={{ color: "var(--color-surface)" }}>{task.title}</h3>
-        <p className="text-sm mb-5 flex items-center gap-1.5" style={{ color: "rgba(245,242,234,0.5)" }}>
-          <Clock size={14} /> Reviewed within 24 hours
-        </p>
-
-        {task.instructions && (
-          <div className="text-sm mb-5 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.7)" }}>
-            {task.instructions}
-          </div>
-        )}
-
-        {error && (
-          <div className="text-sm mb-4 p-3 rounded-lg" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-2 cursor-pointer">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.45)" }}>Screenshot <span style={{ color: "#E8633A" }}>*</span></span>
-            <div className="flex items-center justify-center gap-3 py-5 rounded-xl"
-              style={{
-                background: file ? "rgba(0,200,117,0.08)" : "rgba(255,255,255,0.04)",
-                border: `2px dashed ${file ? "rgba(0,200,117,0.5)" : "rgba(255,255,255,0.15)"}`,
-                color: file ? "#00C875" : "rgba(245,242,234,0.5)",
-              }}>
-              <Upload size={20} style={{ color: file ? "#00C875" : "rgba(245,242,234,0.4)" }} />
-              <span className="text-sm font-medium">{file ? file.name : "Choose Screenshot"}</span>
-            </div>
-            <input type="file" accept="image/*" required onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
-          </label>
-
-          <div className="flex gap-3 mt-1">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg text-sm"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(245,242,234,0.7)" }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={submitting || !file}
-              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
-              style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
-              {submitting ? "Submitting…" : "Submit"}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }
