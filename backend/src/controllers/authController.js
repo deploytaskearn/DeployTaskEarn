@@ -206,4 +206,20 @@ async function getMe(req, res) {
   }
 }
 
-module.exports = { register, login, adminLogin, getMe, updateProfile };
+async function adminMe(req, res) {
+  try {
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+    const result = await pool.query(
+      `SELECT id, name, email, role FROM "User" WHERE id = $1`,
+      [req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('adminMe error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile };

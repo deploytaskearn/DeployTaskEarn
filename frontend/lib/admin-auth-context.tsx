@@ -21,8 +21,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     const token = typeof window !== "undefined" ? localStorage.getItem("taskearn_admin_token") : null;
     if (!token) { setAdmin(null); setLoading(false); return; }
     try {
-      const res = await adminApi.get("/auth/me");
-      if (res.data?.role !== "ADMIN") throw new Error("not admin");
+      const res = await adminApi.get("/auth/admin-me");
       setAdmin(res.data);
     } catch {
       localStorage.removeItem("taskearn_admin_token");
