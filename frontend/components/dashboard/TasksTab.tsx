@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import api from "@/lib/api";
 import { Task } from "@/lib/types";
-import { CheckCircle2, ExternalLink, Trophy, Zap } from "lucide-react";
+import { CheckCircle2, ExternalLink, Trophy, Zap, Upload, X as XIcon, ImageIcon } from "lucide-react";
 
 const CARD = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" };
 
@@ -13,12 +13,169 @@ interface CompletionResult {
   bonusSpinsEarned: number;
 }
 
+// ── Proof modal ──────────────────────────────────────────────────────────────
+
+function ProofModal({
+  task,
+  onSubmit,
+  onClose,
+}: {
+  task: Task;
+  onSubmit: (proofText: string, proofFile: File | null) => void;
+  onClose: () => void;
+}) {
+  const [proofText, setProofText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    if (f) {
+      const url = URL.createObjectURL(f);
+      setPreview(url);
+    } else {
+      setPreview(null);
+    }
+  }
+
+  const canSubmit = proofText.trim().length > 0 || file !== null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl p-6 flex flex-col gap-4"
+        style={{ background: "var(--color-bg)", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-lg" style={{ color: "var(--color-surface)" }}>Submit Proof</h3>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.45)" }}>{task.title}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: "rgba(245,242,234,0.5)" }}>
+            <XIcon size={18} />
+          </button>
+        </div>
+
+        {/* Screenshot upload */}
+        <div>
+          <p className="text-xs font-semibold mb-2" style={{ color: "rgba(245,242,234,0.6)" }}>
+            Screenshot (optional)
+          </p>
+          {preview ? (
+            <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 200 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview} alt="proof preview" className="w-full object-cover" style={{ maxHeight: 200 }} />
+              <button
+                onClick={() => { setFile(null); setPreview(null); if (fileRef.current) fileRef.current.value = ""; }}
+                className="absolute top-2 right-2 p-1 rounded-full"
+                style={{ background: "rgba(0,0,0,0.6)" }}
+              >
+                <XIcon size={14} color="white" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-full py-8 rounded-xl flex flex-col items-center gap-2 border-dashed transition-colors"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1.5px dashed rgba(255,255,255,0.15)",
+                color: "rgba(245,242,234,0.4)",
+              }}
+            >
+              <ImageIcon size={24} />
+              <span className="text-sm">Tap to upload screenshot</span>
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={pickFile}
+          />
+        </div>
+
+        {/* Text proof */}
+        <div>
+          <p className="text-xs font-semibold mb-2" style={{ color: "rgba(245,242,234,0.6)" }}>
+            Description <span style={{ color: "rgba(245,242,234,0.3)" }}>(what you did)</span>
+          </p>
+          <textarea
+            value={proofText}
+            onChange={e => setProofText(e.target.value)}
+            rows={3}
+            placeholder="Briefly describe how you completed this task…"
+            className="w-full rounded-xl px-4 py-3 text-sm resize-none outline-none"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "var(--color-surface)",
+            }}
+          />
+        </div>
+
+        {/* Submit */}
+        <button
+          onClick={() => onSubmit(proofText, file)}
+          disabled={!canSubmit}
+          className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          Submit Proof
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Countdown overlay ────────────────────────────────────────────────────────
+
+function CountdownOverlay({ seconds }: { seconds: number }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}>
+      <div className="flex flex-col items-center gap-5">
+        <div
+          className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-display font-bold"
+          style={{
+            background: "rgba(0,200,117,0.12)",
+            border: "3px solid #00C875",
+            color: "#00C875",
+            boxShadow: "0 0 32px rgba(0,200,117,0.3)",
+          }}
+        >
+          {seconds}
+        </div>
+        <p className="text-base font-semibold" style={{ color: "rgba(245,242,234,0.8)" }}>
+          Verifying your proof…
+        </p>
+        <p className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+          Reward will be added in {seconds} second{seconds !== 1 ? "s" : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  // per-task state: submitting | done+result
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [done, setDone] = useState<Record<string, CompletionResult>>({});
+
+  // Which task is waiting for proof
+  const [proofTask, setProofTask] = useState<Task | null>(null);
+  // Countdown state
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -31,18 +188,41 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     return () => clearInterval(t);
   }, [load]);
 
-  async function completeTask(task: Task) {
-    if (submitting[task.id] || done[task.id] || task.alreadySubmitted) return;
+  async function handleProofSubmit(task: Task, proofText: string, proofFile: File | null) {
+    setProofTask(null);
     setSubmitting(s => ({ ...s, [task.id]: true }));
+
+    // Start 5-second countdown
+    setCountdown(5);
+    const tick = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(tick);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Build FormData (supports file + text)
+    const form = new FormData();
+    if (proofFile) form.append("proofFile", proofFile);
+    if (proofText.trim()) form.append("proofText", proofText.trim());
+
     try {
-      const r = await api.post<CompletionResult>(`/tasks/${task.id}/submit`, {});
+      // Wait 5 seconds then submit (countdown runs in parallel)
+      await new Promise(res => setTimeout(res, 5000));
+      const r = await api.post<CompletionResult>(`/tasks/${task.id}/submit`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       setDone(d => ({ ...d, [task.id]: r.data }));
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true } : t));
       onRewardEarned?.();
     } catch {
-      // already submitted or other error — reload to sync state
       load();
     } finally {
+      clearInterval(tick);
+      setCountdown(null);
       setSubmitting(s => ({ ...s, [task.id]: false }));
     }
   }
@@ -73,6 +253,18 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
 
   return (
     <>
+      {/* Proof modal */}
+      {proofTask && (
+        <ProofModal
+          task={proofTask}
+          onSubmit={(text, file) => handleProofSubmit(proofTask, text, file)}
+          onClose={() => setProofTask(null)}
+        />
+      )}
+
+      {/* Countdown overlay */}
+      {countdown !== null && <CountdownOverlay seconds={countdown} />}
+
       {freeTasks.length > 0 && (
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -86,7 +278,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
                 result={done[t.id] ?? null}
-                onComplete={() => completeTask(t)}
+                onComplete={() => setProofTask(t)}
               />
             ))}
           </div>
@@ -108,7 +300,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
                 result={done[t.id] ?? null}
-                onComplete={() => completeTask(t)}
+                onComplete={() => setProofTask(t)}
               />
             ))}
           </div>
@@ -117,6 +309,8 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     </>
   );
 }
+
+// ── Task card ─────────────────────────────────────────────────────────────────
 
 function TaskCard({
   task, submitting, result, onComplete,
@@ -153,7 +347,6 @@ function TaskCard({
 
       <p className="text-sm leading-relaxed flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
 
-      {/* External link if present */}
       {task.externalUrl && !isDone && (
         <a href={task.externalUrl.startsWith("http") ? task.externalUrl : `https://${task.externalUrl}`}
           target="_blank" rel="noopener noreferrer"
@@ -190,7 +383,7 @@ function TaskCard({
           {submitting ? (
             <><span className="animate-spin inline-block">⟳</span> Processing…</>
           ) : (
-            <><Zap size={15} /> Complete Task</>
+            <><Upload size={15} /> Submit Proof</>
           )}
         </button>
       )}

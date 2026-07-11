@@ -101,15 +101,22 @@ async function submitTask(req, res) {
       return res.status(409).json({ error: 'You already completed this task' });
     }
 
+    // Validate proof if task requires it
+    const proofText = req.body?.proofText?.trim() || null;
+    const proofFileUrl = req.file ? `/uploads/proofs/${req.file.filename}` : null;
+    if (task.requiresProof && !proofText && !proofFileUrl) {
+      return res.status(400).json({ error: 'Proof is required for this task (screenshot or description).' });
+    }
+
     const rewardAmount = parseFloat(task.rewardAmount);
 
     // Auto-approve and credit wallet immediately
     const result = await pool.query(
       `INSERT INTO "TaskSubmission"
-         (id, "taskId", "userId", status, "rewardPaid", "autoApproved", "createdAt", "reviewedAt")
-       VALUES (gen_random_uuid(), $1, $2, 'APPROVED', $3, true, now(), now())
+         (id, "taskId", "userId", status, "rewardPaid", "autoApproved", "proofText", "proofFileUrl", "createdAt", "reviewedAt")
+       VALUES (gen_random_uuid(), $1, $2, 'APPROVED', $3, true, $4, $5, now(), now())
        RETURNING *`,
-      [taskId, userId, rewardAmount]
+      [taskId, userId, rewardAmount, proofText, proofFileUrl]
     );
 
     await walletService.credit(userId, rewardAmount, 'TASK_EARNING', result.rows[0].id, `Task completed: ${task.title}`);
