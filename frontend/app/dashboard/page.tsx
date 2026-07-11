@@ -6,13 +6,13 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft } from "lucide-react";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 
-type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history";
+type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
 
 export default function DashboardPage() {
@@ -42,9 +42,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    // Reset plan state immediately so stale data from a previous user never shows
+    // Reset all user-specific state so previous session data never bleeds through
     setMyPlan(null);
     setMyPlanIds([]);
+    setHistSubs([]);
+    setHistDeposits([]);
+    setHistWithdrawals([]);
     api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
@@ -530,6 +533,13 @@ export default function DashboardPage() {
         <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Menu</h2>
           <div className="flex flex-col gap-3">
+            <button onClick={() => setTab("profile")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
+              <UserCircle size={18} style={{ color: "#00C875" }} />
+              <div>
+                <div className="text-sm font-medium">Profile</div>
+                <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{user?.name} · {user?.email}</div>
+              </div>
+            </button>
             <button onClick={() => router.push("/dashboard/deposit")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <Banknote size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Deposit funds</span>
@@ -549,6 +559,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Profile tab ── */}
+      {tab === "profile" && <ProfileTab user={user} onBack={() => setTab("menu")} />}
 
       {/* ── History tab ── */}
       {tab === "history" && (
@@ -737,7 +750,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bottom navigation ── */}
-      <div style={{ flexShrink: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <div style={{ flexShrink: 0, background: "#0A1A12", paddingBottom: "env(safe-area-inset-bottom, 0px)", display: tab === "profile" ? "none" : undefined }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", background: "#0f2018", borderTop: "1px solid #1a2e22", paddingTop: 8, paddingBottom: 10, maxWidth: 640, margin: "0 auto" }}>
           {[
             { id: "main" as Tab, icon: Home, label: "Main" },
@@ -761,6 +774,138 @@ export default function DashboardPage() {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Profile Tab component
+// ─────────────────────────────────────────────
+import { User } from "@/lib/types";
+
+function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name ?? "");
+  const [phone, setPhone] = useState(user.phone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.patch("/auth/profile", { name: name.trim(), phone: phone.trim() || null });
+      setMsg({ ok: true, text: "Profile updated!" });
+      setEditing(false);
+    } catch (err: unknown) {
+      const text = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Update failed.";
+      setMsg({ ok: false, text });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCancel() {
+    setName(user.name ?? "");
+    setPhone(user.phone ?? "");
+    setEditing(false);
+    setMsg(null);
+  }
+
+  return (
+    <div className="px-4 pt-4 pb-20 w-full max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: "rgba(255,255,255,0.07)" }}>
+          <ChevronLeft size={18} style={{ color: "#F5F2EA" }} />
+        </button>
+        <h2 className="font-display text-xl" style={{ color: "#F5F2EA" }}>My Profile</h2>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+            style={{ background: "rgba(0,200,117,0.12)", color: "#00C875", border: "1px solid rgba(0,200,117,0.2)" }}>
+            <Pencil size={12} /> Edit
+          </button>
+        )}
+      </div>
+
+      {/* Avatar circle */}
+      <div className="flex flex-col items-center mb-6">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-3"
+          style={{ background: "linear-gradient(135deg,#0d3a1a,#00C875)", border: "3px solid rgba(0,200,117,0.3)" }}>
+          <span className="font-display text-3xl font-bold" style={{ color: "#fff" }}>
+            {(user.name ?? "?")[0].toUpperCase()}
+          </span>
+        </div>
+        <div className="text-base font-bold" style={{ color: "#F5F2EA" }}>{user.name}</div>
+        <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.4)" }}>Member since {new Date(user.createdAt).toLocaleDateString()}</div>
+      </div>
+
+      {/* Status message */}
+      {msg && (
+        <div className="mb-4 px-4 py-3 rounded-2xl text-sm text-center"
+          style={{ background: msg.ok ? "rgba(0,200,117,0.1)" : "rgba(232,99,58,0.1)", color: msg.ok ? "#00C875" : "#E8633A", border: `1px solid ${msg.ok ? "rgba(0,200,117,0.2)" : "rgba(232,99,58,0.2)"}` }}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Fields */}
+      <div className="rounded-3xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {/* Name */}
+        <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <UserCircle size={14} style={{ color: "#00C875" }} />
+            <span className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>Full Name</span>
+          </div>
+          {editing ? (
+            <input value={name} onChange={e => setName(e.target.value)} className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(0,200,117,0.3)", color: "#F5F2EA" }} />
+          ) : (
+            <div className="text-sm font-semibold mt-1" style={{ color: "#F5F2EA" }}>{user.name || "—"}</div>
+          )}
+        </div>
+
+        {/* Email */}
+        <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Mail size={14} style={{ color: "#00C875" }} />
+            <span className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>Email</span>
+          </div>
+          <div className="text-sm font-semibold mt-1" style={{ color: "#F5F2EA" }}>{user.email}</div>
+          <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.3)" }}>Email cannot be changed</div>
+        </div>
+
+        {/* Phone */}
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Phone size={14} style={{ color: "#00C875" }} />
+            <span className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>Phone Number</span>
+          </div>
+          {editing ? (
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="03XX-XXXXXXX" className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(0,200,117,0.3)", color: "#F5F2EA" }} />
+          ) : (
+            <div className="text-sm font-semibold mt-1" style={{ color: user.phone ? "#F5F2EA" : "rgba(245,242,234,0.3)" }}>
+              {user.phone || "Not set"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save / Cancel */}
+      {editing && (
+        <div className="flex gap-3 mt-4">
+          <button onClick={handleCancel} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-semibold"
+            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(245,242,234,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <XIcon size={15} /> Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving || !name.trim()} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold disabled:opacity-50"
+            style={{ background: "#00C875", color: "#000" }}>
+            <Save size={15} /> {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

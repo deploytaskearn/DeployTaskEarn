@@ -125,6 +125,23 @@ async function login(req, res) {
   }
 }
 
+async function updateProfile(req, res) {
+  try {
+    const { name, phone } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({ error: 'Name must be at least 2 characters.' });
+    }
+    await pool.query(
+      `UPDATE "User" SET name=$1, phone=$2, "updatedAt"=now() WHERE id=$3`,
+      [name.trim(), phone?.trim() || null, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('updateProfile error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 async function getMe(req, res) {
   try {
     const result = await pool.query(
@@ -144,4 +161,4 @@ async function getMe(req, res) {
   }
 }
 
-module.exports = { register, login, getMe };
+module.exports = { register, login, getMe, updateProfile };
