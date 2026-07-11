@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/admin-api";
 import { User } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2 } from "lucide-react";

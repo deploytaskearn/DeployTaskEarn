@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useAdminAuth } from "@/lib/admin-auth-context";
 import { Shield } from "lucide-react";
 
 export default function AdminLoginPage() {
-  const { login, logout, user, loading } = useAuth();
+  const { login, admin, loading } = useAdminAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,23 +14,17 @@ export default function AdminLoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user && user.role === "ADMIN") {
+    if (!loading && admin) {
       router.replace("/secure-mgmt");
     }
-    // Non-admin users stay on this page so they can log in as admin
-  }, [user, loading, router]);
+  }, [admin, loading, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      const u = await login(email, password);
-      if (u.role !== "ADMIN") {
-        setError("Access denied. Admin accounts only.");
-        logout();
-        return;
-      }
+      await login(email, password);
       router.replace("/secure-mgmt");
     } catch {
       setError("Invalid credentials.");

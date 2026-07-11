@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/admin-api";
 import { Task } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Plus, Trash2, X, Check, Pencil } from "lucide-react";

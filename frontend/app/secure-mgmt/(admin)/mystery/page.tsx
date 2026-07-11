@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/admin-api";
 import { MysteryBoxPrize } from "@/lib/types";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 

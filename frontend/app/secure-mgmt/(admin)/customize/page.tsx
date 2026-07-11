@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import api from "@/lib/api";
+import api from "@/lib/admin-api";
 
 const COLOR_FIELDS = [
   { key: "color_bg", label: "Background (dark)", default: "#0A0F0D" },

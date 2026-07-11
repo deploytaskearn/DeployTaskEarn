@@ -92,6 +92,11 @@ async function login(req, res) {
 
     const user = result.rows[0];
 
+    // Admin accounts must use /api/auth/admin-login — never the user portal
+    if (user.role === 'ADMIN') {
+      return res.status(403).json({ error: 'Admin accounts cannot access the user portal.' });
+    }
+
     if (user.status === 'BANNED') {
       return res.status(403).json({ error: 'Account banned' });
     }
@@ -121,6 +126,42 @@ async function login(req, res) {
       return res.status(400).json({ error: 'Validation failed', details: err.errors });
     }
     console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Separate login endpoint exclusively for admin panel — stores in a different token key on frontend
+async function adminLogin(req, res) {
+  try {
+    const data = loginSchema.parse(req.body);
+
+    const result = await pool.query('SELECT * FROM "User" WHERE LOWER(email) = LOWER($1)', [data.email]);
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+
+    if (user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const valid = await comparePassword(data.password, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = signToken({ userId: user.id, role: user.role });
+
+    res.json({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      token,
+    });
+  } catch (err) {
+    if (err.name === 'ZodError') {
+      return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    }
+    console.error('adminLogin error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -161,4 +202,4 @@ async function getMe(req, res) {
   }
 }
 
-module.exports = { register, login, getMe, updateProfile };
+module.exports = { register, login, adminLogin, getMe, updateProfile };

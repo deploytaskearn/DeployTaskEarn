@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Pencil, Trash2, Star, Check, X, ImagePlus, ListChecks, ChevronDown, ChevronUp, Search, Minus } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Plan, Task } from "@/lib/types";
-import api, { uploadUrl } from "@/lib/api";
+import api, { uploadUrl } from "@/lib/admin-api";
 
 interface PlanForm {
   name: string; description: string; price: string; durationDays: number;

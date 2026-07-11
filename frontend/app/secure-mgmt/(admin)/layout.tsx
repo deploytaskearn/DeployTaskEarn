@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { useRequireAuth } from "@/lib/useRequireAuth";
-import { useAuth } from "@/lib/auth-context";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useAdminAuth } from "@/lib/admin-auth-context";
 import {
   LayoutDashboard,
   Banknote,
@@ -39,8 +38,13 @@ const NAV = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useRequireAuth(true, "/secure-mgmt/login");
-  const { logout } = useAuth();
+  const { admin: user, loading, logout } = useAdminAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/secure-mgmt/login");
+    }
+  }, [user, loading, router]);
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 

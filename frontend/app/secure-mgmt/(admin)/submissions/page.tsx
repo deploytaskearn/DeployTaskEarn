@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import api, { uploadUrl } from "@/lib/api";
+import api, { uploadUrl } from "@/lib/admin-api";
 import { TaskSubmission } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Check, X, ImageIcon } from "lucide-react";

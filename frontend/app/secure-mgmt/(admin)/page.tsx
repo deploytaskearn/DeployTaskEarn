@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/admin-api";
 import { DashboardStats } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Users, Banknote, ArrowUpFromLine, ListChecks, Clock } from "lucide-react";
