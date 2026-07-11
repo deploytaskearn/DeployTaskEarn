@@ -64,9 +64,6 @@ function ProofModal({
 
         {/* Screenshot upload */}
         <div>
-          <p className="text-xs font-semibold mb-2" style={{ color: "rgba(245,242,234,0.6)" }}>
-            Screenshot (optional)
-          </p>
           {preview ? (
             <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 200 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
