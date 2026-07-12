@@ -389,7 +389,7 @@ export default function DashboardPage() {
           <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Referral</h2>
           <div className="rounded-3xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-sm font-semibold mb-1" style={{ color: "#F5F2EA" }}>Your referral link</div>
-            <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.45)" }}>Share and earn 5% when friends buy a plan.</div>
+            <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.45)" }}>Share and earn {referralStats?.bonusRate ?? 5}% when friends buy a plan.</div>
             <div className="min-w-0 flex gap-2 mb-4">
               <div className="min-w-0 flex-1 px-3 py-2.5 rounded-xl text-xs font-mono overflow-hidden text-ellipsis whitespace-nowrap" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 {referralLink}
@@ -419,7 +419,7 @@ export default function DashboardPage() {
           </div>
           <div className="rounded-2xl px-5 py-3 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <span className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Bonus rate per plan purchase</span>
-            <span className="font-mono-tabular text-base font-bold gradient-text">5%</span>
+            <span className="font-mono-tabular text-base font-bold gradient-text">{referralStats?.bonusRate ?? 5}%</span>
           </div>
         </div>
       )}
@@ -492,7 +492,7 @@ export default function DashboardPage() {
                         <div style={{ fontSize: 11, color: "#5a8a6a" }}>{maxU ? "Slots" : "Unlimited"}</div>
                       </div>
                       <div style={{ flex: 1, textAlign: "center" as const, borderLeft: "1px solid #1a4a2e", borderRight: "1px solid #1a4a2e" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>5%</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA", marginBottom: 2 }}>{referralStats?.bonusRate ?? 5}%</div>
                         <div style={{ fontSize: 11, color: "#5a8a6a" }}>Referral</div>
                       </div>
                       <div style={{ flex: 1, textAlign: "center" as const }}>

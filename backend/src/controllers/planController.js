@@ -211,8 +211,10 @@ async function getMyPlans(req, res) {
 async function getReferralStats(req, res) {
   try {
     const userId = req.user.id;
-    const userRes = await pool.query(`SELECT "referralCode" FROM "User" WHERE id = $1`, [userId]);
+    const userRes = await pool.query(`SELECT "referralCode", "referralBonusRate" FROM "User" WHERE id = $1`, [userId]);
     const referralCode = userRes.rows[0]?.referralCode;
+    const rawRate = userRes.rows[0]?.referralBonusRate;
+    const bonusRate = rawRate !== null && rawRate !== undefined ? parseFloat(rawRate) : 5;
 
     const referralsRes = await pool.query(
       `SELECT COUNT(*) as count FROM "User" WHERE "referredById" = $1`, [userId]
@@ -224,6 +226,7 @@ async function getReferralStats(req, res) {
 
     res.json({
       referralCode,
+      bonusRate,
       totalReferrals: parseInt(referralsRes.rows[0].count),
       totalBonusEarned: parseFloat(bonusRes.rows[0].total),
     });

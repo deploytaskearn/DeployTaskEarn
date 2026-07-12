@@ -143,6 +143,7 @@ export interface UserPlan {
 
 export interface ReferralStats {
   referralCode: string;
+  bonusRate: number;
   totalReferrals: number;
   totalBonusEarned: number;
 }
