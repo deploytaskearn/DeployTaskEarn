@@ -52,7 +52,7 @@ export default function GoldSpinPage() {
       const { winnerIndex, totalSegments } = res.data;
       setSpinning(true);
       const segAngle = 360 / totalSegments;
-      const toWinner = 337.5 - winnerIndex * segAngle;
+      const toWinner = (360 - segAngle / 2) - winnerIndex * segAngle;
       const finalRot = prevRot.current + 1800 + toWinner;
       prevRot.current = finalRot;
       setRotation(finalRot);
