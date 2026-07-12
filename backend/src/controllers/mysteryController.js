@@ -2,7 +2,14 @@ const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
 const DAILY_LIMIT = 1;
-const PREMIUM_BOX_PRICE = 300; // Rs — cost to buy one premium mystery box open
+
+async function getPremiumBoxPrice() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='premium_box_price' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseFloat(r.rows[0].value);
+  } catch {}
+  return 300;
+}
 
 async function getSecondsUntilNextPlay(userId) {
   const last = await pool.query(
@@ -40,6 +47,7 @@ async function getInfo(req, res) {
     // Wallet balance (so frontend knows if user can afford premium)
     const wb = await walletService.getBalance(userId);
     const walletBalance = parseFloat(wb.balance ?? 0);
+    const premiumBoxPrice = await getPremiumBoxPrice();
 
     res.json({
       prizes: prizes.rows,
@@ -47,7 +55,7 @@ async function getInfo(req, res) {
       playsToday,
       secondsUntilReset,
       premiumPrizes: premiumPrizes.rows,
-      premiumBoxPrice: PREMIUM_BOX_PRICE,
+      premiumBoxPrice,
       walletBalance,
     });
   } catch (err) {
@@ -114,6 +122,7 @@ async function openBox(req, res) {
 async function buyAndOpenPremium(req, res) {
   try {
     const userId = req.user.id;
+    const PREMIUM_BOX_PRICE = await getPremiumBoxPrice();
 
     // Deduct from wallet
     try {
@@ -208,8 +217,32 @@ async function adminDeletePremiumPrize(req, res) {
   catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
+// Admin — config (premium box price etc.)
+async function adminGetConfig(req, res) {
+  try {
+    const price = await getPremiumBoxPrice();
+    res.json({ premiumBoxPrice: price });
+  } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
+}
+
+async function adminSetConfig(req, res) {
+  try {
+    const { premiumBoxPrice } = req.body;
+    if (premiumBoxPrice === undefined || isNaN(parseFloat(premiumBoxPrice))) {
+      return res.status(400).json({ error: 'premiumBoxPrice is required' });
+    }
+    await pool.query(
+      `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('premium_box_price', $1, now())
+       ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+      [String(parseFloat(premiumBoxPrice))]
+    );
+    res.json({ ok: true, premiumBoxPrice: parseFloat(premiumBoxPrice) });
+  } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
+}
+
 module.exports = {
   getInfo, openBox, buyAndOpenPremium,
   adminGetPrizes, adminUpsertPrize, adminDeletePrize,
   adminGetPremiumPrizes, adminUpsertPremiumPrize, adminDeletePremiumPrize,
+  adminGetConfig, adminSetConfig,
 };

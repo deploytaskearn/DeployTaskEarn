@@ -108,7 +108,7 @@ export default function HomePage() {
                 Choose your plan, scale your earnings.
               </h2>
               <p className="text-sm max-w-md mx-auto" style={{ color: "rgba(245,242,234,0.5)" }}>
-                Invest in a plan to unlock higher earning potential. Refer friends and earn 5% commission on their plan purchases.
+                Invest in a plan to unlock higher earning potential. Refer friends and earn a referral commission on their plan purchases.
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 mb-10">
@@ -178,9 +178,9 @@ export default function HomePage() {
           </div>
           <div className="glass-card rounded-2xl p-8" style={{ border: "1px solid var(--color-hairline)" }}>
             <div className="text-xs tracking-widest uppercase mb-6 font-medium" style={{ color: "var(--color-gold)" }}>Referral Program</div>
-            <h3 className="font-display text-2xl mb-3" style={{ color: "var(--color-surface)" }}>Earn 5% on every plan purchase</h3>
+            <h3 className="font-display text-2xl mb-3" style={{ color: "var(--color-surface)" }}>Earn a referral bonus on every plan purchase</h3>
             <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(245,242,234,0.55)" }}>
-              Share your unique referral link. When your friend buys any plan, you instantly receive 5% of the plan price directly in your wallet.
+              Share your unique referral link. When your friend buys any plan, you instantly receive a referral bonus directly in your wallet.
             </p>
             <div className="rounded-xl p-4 mb-6" style={{ background: "rgba(244,200,66,0.08)", border: "1px solid rgba(244,200,66,0.2)" }}>
               <div className="text-xs mb-1" style={{ color: "var(--color-gold)" }}>Example</div>

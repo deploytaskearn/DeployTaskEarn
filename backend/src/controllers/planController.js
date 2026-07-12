@@ -118,16 +118,13 @@ async function purchasePlan(req, res) {
       return res.status(422).json({ error: 'This plan is sold out. No more slots available.' });
     }
 
-    // Only 1 active plan allowed at a time
-    const anyActive = await pool.query(
-      `SELECT up.id, p.name FROM "UserPlan" up JOIN "Plan" p ON p.id = up."planId"
-       WHERE up."userId" = $1 AND up.status = 'ACTIVE' LIMIT 1`,
-      [userId]
+    // Once a plan is purchased it cannot be bought again (any status)
+    const alreadyBought = await pool.query(
+      `SELECT up.id FROM "UserPlan" up WHERE up."userId" = $1 AND up."planId" = $2 LIMIT 1`,
+      [userId, planId]
     );
-    if (anyActive.rows.length > 0) {
-      return res.status(422).json({
-        error: `You already have the "${anyActive.rows[0].name}" plan active. It must expire before you can buy a new one.`,
-      });
+    if (alreadyBought.rows.length > 0) {
+      return res.status(422).json({ error: 'You have already purchased this plan.' });
     }
 
     // Debit wallet
@@ -207,6 +204,20 @@ async function getMyPlans(req, res) {
   }
 }
 
+// User: get all ever-purchased plan IDs (any status)
+async function getMyPurchasedPlanIds(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT "planId" FROM "UserPlan" WHERE "userId" = $1`,
+      [req.user.id]
+    );
+    res.json(result.rows.map((r) => r.planId));
+  } catch (err) {
+    console.error('getMyPurchasedPlanIds error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // User: referral stats
 async function getReferralStats(req, res) {
   try {
@@ -232,6 +243,213 @@ async function getReferralStats(req, res) {
     });
   } catch (err) {
     console.error('getReferralStats error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// User: detailed referral breakdown — referred users + bonus earnings
+async function getReferralDetails(req, res) {
+  try {
+    const userId = req.user.id;
+
+    // People who registered with this user's referral code
+    const usersRes = await pool.query(
+      `SELECT u.id, u.name, u."createdAt" as "joinedAt",
+              COALESCE((SELECT COUNT(*) FROM "UserPlan" up WHERE up."userId" = u.id), 0) as "plansBought"
+       FROM "User" u
+       WHERE u."referredById" = $1
+       ORDER BY u."createdAt" DESC`,
+      [userId]
+    );
+
+    // Referral bonus credits from ledger
+    const bonusRes = await pool.query(
+      `SELECT le.id, le.amount, le."createdAt", le.note,
+              u.name as "referredUserName",
+              p.name as "planName"
+       FROM "LedgerEntry" le
+       JOIN "UserPlan" up ON up.id::text = le."referenceId"
+       JOIN "User" u ON u.id = up."userId"
+       JOIN "Plan" p ON p.id = up."planId"
+       WHERE le."userId" = $1 AND le.type = 'REFERRAL_PLAN_BONUS'
+       ORDER BY le."createdAt" DESC`,
+      [userId]
+    );
+
+    res.json({
+      referredUsers: usersRes.rows,
+      bonuses: bonusRes.rows,
+    });
+  } catch (err) {
+    console.error('getReferralDetails error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin: full referral overview — commissions paid + unlinked referrals
+async function adminGetReferrals(req, res) {
+  try {
+    // All referral bonus credits already paid
+    const paidRes = await pool.query(
+      `SELECT
+         le.id, le.amount as "commissionAmount", le."createdAt",
+         referrer.name as "referrerName", referrer.email as "referrerEmail",
+         referrer."referralBonusRate" as "referrerRate",
+         referred.name as "referredName", referred.email as "referredEmail",
+         p.name as "planName", p.price as "planPrice"
+       FROM "LedgerEntry" le
+       JOIN "User" referrer ON referrer.id = le."userId"
+       JOIN "UserPlan" up ON up.id::text = le."referenceId"
+       JOIN "User" referred ON referred.id = up."userId"
+       JOIN "Plan" p ON p.id = up."planId"
+       WHERE le.type = 'REFERRAL_PLAN_BONUS'
+       ORDER BY le."createdAt" DESC`
+    );
+
+    // Users registered via referral but commission not yet paid (no plan bought)
+    const pendingRes = await pool.query(
+      `SELECT
+         referred.id as "referredId", referred.name as "referredName", referred.email as "referredEmail",
+         referred."createdAt" as "joinedAt",
+         referrer.id as "referrerId", referrer.name as "referrerName", referrer.email as "referrerEmail",
+         referrer."referralCode", referrer."referralBonusRate" as "referrerRate",
+         COALESCE((SELECT COUNT(*) FROM "UserPlan" up WHERE up."userId" = referred.id), 0) as "plansBought"
+       FROM "User" referred
+       JOIN "User" referrer ON referrer.id = referred."referredById"
+       ORDER BY referred."createdAt" DESC`
+    );
+
+    res.json({
+      paid: paidRes.rows,
+      registered: pendingRes.rows,
+    });
+  } catch (err) {
+    console.error('adminGetReferrals error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin: manually link referredById + credit missed bonus for all existing plans
+async function adminLinkReferral(req, res) {
+  try {
+    const { referredUserId, referrerId, creditBonus } = req.body;
+    if (!referredUserId || !referrerId) {
+      return res.status(400).json({ error: 'referredUserId and referrerId are required' });
+    }
+
+    // Set referredById
+    const updateRes = await pool.query(
+      `UPDATE "User" SET "referredById" = $1 WHERE id = $2 AND ("referredById" IS NULL OR "referredById" != $1) RETURNING id`,
+      [referrerId, referredUserId]
+    );
+
+    let credited = 0;
+    if (creditBonus) {
+      // Find all plans this user bought that don't already have a bonus paid
+      const plansRes = await pool.query(
+        `SELECT up.id, up."planId", p.price, p.name as "planName"
+         FROM "UserPlan" up
+         JOIN "Plan" p ON p.id = up."planId"
+         WHERE up."userId" = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM "LedgerEntry" le
+           WHERE le."referenceId" = up.id::text AND le.type = 'REFERRAL_PLAN_BONUS' AND le."userId" = $2
+         )`,
+        [referredUserId, referrerId]
+      );
+
+      const referrerRes = await pool.query(
+        `SELECT "referralBonusRate" FROM "User" WHERE id = $1`, [referrerId]
+      );
+      const rawRate = referrerRes.rows[0]?.referralBonusRate;
+      const rate = rawRate !== null && rawRate !== undefined ? parseFloat(rawRate) / 100 : 0.05;
+      const pct = Math.round(rate * 100);
+
+      for (const plan of plansRes.rows) {
+        const bonus = parseFloat(plan.price) * rate;
+        if (bonus > 0) {
+          await walletService.credit(
+            referrerId, bonus, 'REFERRAL_PLAN_BONUS', plan.id,
+            `${pct}% referral bonus from ${plan.planName} purchase (manual)`
+          );
+          await pool.query(
+            `UPDATE "UserPlan" SET "referralBonusPaid" = true WHERE id = $1`, [plan.id]
+          );
+          credited += bonus;
+        }
+      }
+    }
+
+    res.json({ ok: true, linked: updateRes.rowCount > 0, credited });
+  } catch (err) {
+    console.error('adminLinkReferral error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin: link referral by email and optionally credit missed bonus
+async function adminLinkReferralByEmail(req, res) {
+  try {
+    const { referredEmail, referrerEmail, creditBonus } = req.body;
+    if (!referredEmail || !referrerEmail) {
+      return res.status(400).json({ error: 'referredEmail and referrerEmail are required' });
+    }
+
+    const referredRes = await pool.query(
+      `SELECT id, name FROM "User" WHERE LOWER(email) = LOWER($1)`, [referredEmail]
+    );
+    if (referredRes.rows.length === 0) return res.status(404).json({ error: `User not found: ${referredEmail}` });
+
+    const referrerRes2 = await pool.query(
+      `SELECT id, name, "referralBonusRate" FROM "User" WHERE LOWER(email) = LOWER($1)`, [referrerEmail]
+    );
+    if (referrerRes2.rows.length === 0) return res.status(404).json({ error: `Referrer not found: ${referrerEmail}` });
+
+    const referredUserId = referredRes.rows[0].id;
+    const referrerId = referrerRes2.rows[0].id;
+
+    await pool.query(
+      `UPDATE "User" SET "referredById" = $1 WHERE id = $2`, [referrerId, referredUserId]
+    );
+
+    let credited = 0;
+    if (creditBonus) {
+      const rawRate = referrerRes2.rows[0].referralBonusRate;
+      const rate = rawRate !== null && rawRate !== undefined ? parseFloat(rawRate) / 100 : 0.05;
+      const pct = Math.round(rate * 100);
+
+      const plansRes = await pool.query(
+        `SELECT up.id, up."planId", p.price, p.name as "planName"
+         FROM "UserPlan" up JOIN "Plan" p ON p.id = up."planId"
+         WHERE up."userId" = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM "LedgerEntry" le
+           WHERE le."referenceId" = up.id::text AND le.type = 'REFERRAL_PLAN_BONUS' AND le."userId" = $2
+         )`,
+        [referredUserId, referrerId]
+      );
+
+      for (const plan of plansRes.rows) {
+        const bonus = parseFloat(plan.price) * rate;
+        if (bonus > 0) {
+          await walletService.credit(
+            referrerId, bonus, 'REFERRAL_PLAN_BONUS', plan.id,
+            `${pct}% referral bonus from ${plan.planName} purchase (manual)`
+          );
+          await pool.query(`UPDATE "UserPlan" SET "referralBonusPaid" = true WHERE id = $1`, [plan.id]);
+          credited += bonus;
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      referredUser: referredRes.rows[0].name,
+      referrer: referrerRes2.rows[0].name,
+      credited,
+    });
+  } catch (err) {
+    console.error('adminLinkReferralByEmail error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -285,4 +503,4 @@ async function removePlanTask(req, res) {
   }
 }
 
-module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getReferralStats, getPlanTasks, addPlanTask, removePlanTask };
+module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };

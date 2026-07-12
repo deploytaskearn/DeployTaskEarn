@@ -236,14 +236,6 @@ async function runMigrations() {
     // Auto-expire UserPlans whose endDate has passed
     `UPDATE "UserPlan" SET status = 'EXPIRED'
      WHERE status = 'ACTIVE' AND "endDate" IS NOT NULL AND "endDate" < now()`,
-    // Cancel duplicate active UserPlans — keep only the newest active plan per user
-    `UPDATE "UserPlan" SET status = 'CANCELLED'
-     WHERE status = 'ACTIVE'
-       AND id NOT IN (
-         SELECT DISTINCT ON ("userId") id FROM "UserPlan"
-         WHERE status = 'ACTIVE'
-         ORDER BY "userId", "createdAt" DESC
-       )`,
     // Recalculate currentUsers for all plans based on actual active subscriptions
     `UPDATE "Plan" p SET "currentUsers" = (
        SELECT COUNT(*) FROM "UserPlan" up

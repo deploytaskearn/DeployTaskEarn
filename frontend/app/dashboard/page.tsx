@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [myPlan, setMyPlan] = useState<UserPlan | null | undefined>(undefined);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [myPlanIds, setMyPlanIds] = useState<string[]>([]);
+  const [purchasedPlanIds, setPurchasedPlanIds] = useState<string[]>([]);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -39,19 +40,31 @@ export default function DashboardPage() {
   const [histWithdrawals, setHistWithdrawals] = useState<Withdrawal[]>([]);
   const [histLoading, setHistLoading] = useState(false);
   const [liveBalance, setLiveBalance] = useState<string | null>(null);
+  const [referralDetails, setReferralDetails] = useState<{
+    referredUsers: { id: string; name: string; joinedAt: string; plansBought: string }[];
+    bonuses: { id: string; amount: string; createdAt: string; referredUserName: string; planName: string }[];
+  } | null>(null);
+  const [referralDetailsLoading, setReferralDetailsLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     // Reset all user-specific state so previous session data never bleeds through
     setMyPlan(null);
     setMyPlanIds([]);
+    setPurchasedPlanIds([]);
     setHistSubs([]);
     setHistDeposits([]);
     setHistWithdrawals([]);
     api.get("/plans/referral-stats").then((r) => setReferralStats(r.data)).catch(() => {});
+    setReferralDetailsLoading(true);
+    api.get("/plans/referral-details")
+      .then((r) => setReferralDetails(r.data))
+      .catch(() => setReferralDetails({ referredUsers: [], bonuses: [] }))
+      .finally(() => setReferralDetailsLoading(false));
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
+    api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
     // Fetch fresh wallet balance from server (auth context balance can be stale)
     api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
   }, [user]);
@@ -181,8 +194,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Active plan card — premium when active */}
-          {myPlan ? (
+          {/* Active plans card */}
+          {myPlanIds.length > 0 ? (
             <div className="mt-4 rounded-3xl p-5"
               style={{ background: "linear-gradient(135deg, #1a1500 0%, #0a1a10 100%)", border: "1.5px solid rgba(244,200,66,0.32)" }}>
               <div className="flex items-center gap-3">
@@ -192,11 +205,15 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <div className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(244,200,66,0.6)" }}>Active Plan</div>
+                    <div className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(244,200,66,0.6)" }}>Active Plans</div>
                     <div className="text-xs px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: "rgba(244,200,66,0.15)", color: "#F4C842", border: "1px solid rgba(244,200,66,0.3)" }}>PREMIUM</div>
+                      style={{ background: "rgba(244,200,66,0.15)", color: "#F4C842", border: "1px solid rgba(244,200,66,0.3)" }}>
+                      {myPlanIds.length} PLAN{myPlanIds.length > 1 ? "S" : ""}
+                    </div>
                   </div>
-                  <div className="text-sm font-bold" style={{ color: "#F5F2EA" }}>{myPlan.planName}</div>
+                  <div className="text-sm font-bold" style={{ color: "#F5F2EA" }}>
+                    {plans.filter(p => myPlanIds.includes(p.id)).map(p => p.name).join(", ") || "Loading…"}
+                  </div>
                 </div>
                 <button onClick={() => setTab("plans")} className="text-xs font-semibold px-3 py-2 rounded-xl shrink-0"
                   style={{ background: "rgba(244,200,66,0.13)", color: "#F4C842", border: "1px solid rgba(244,200,66,0.22)" }}>
@@ -386,11 +403,13 @@ export default function DashboardPage() {
       {/* ── Referral tab ── */}
       {tab === "referral" && (
         <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
-          <h2 className="font-display text-xl mb-5" style={{ color: "#F5F2EA" }}>Referral</h2>
-          <div className="rounded-3xl p-5 mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Referral</h2>
+
+          {/* Link + code */}
+          <div className="rounded-3xl p-5 mb-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-sm font-semibold mb-1" style={{ color: "#F5F2EA" }}>Your referral link</div>
-            <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.45)" }}>Share and earn {referralStats?.bonusRate ?? 5}% when friends buy a plan.</div>
-            <div className="min-w-0 flex gap-2 mb-4">
+            <div className="text-xs mb-3" style={{ color: "rgba(245,242,234,0.45)" }}>Share and earn {referralStats?.bonusRate ?? 5}% when friends buy a plan.</div>
+            <div className="min-w-0 flex gap-2 mb-3">
               <div className="min-w-0 flex-1 px-3 py-2.5 rounded-xl text-xs font-mono overflow-hidden text-ellipsis whitespace-nowrap" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(245,242,234,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 {referralLink}
               </div>
@@ -407,19 +426,79 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div className="font-mono-tabular text-2xl font-bold mb-1 gradient-text">{referralStats?.totalReferrals ?? "0"}</div>
-              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Total referrals</div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="rounded-2xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="font-mono-tabular text-xl font-bold mb-0.5 gradient-text">{referralStats?.totalReferrals ?? "0"}</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Referrals</div>
             </div>
-            <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div className="font-mono-tabular text-2xl font-bold mb-1 gradient-text">₨{referralStats ? referralStats.totalBonusEarned.toFixed(0) : "0"}</div>
-              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Bonus earned</div>
+            <div className="rounded-2xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="font-mono-tabular text-xl font-bold mb-0.5 gradient-text">₨{referralStats ? referralStats.totalBonusEarned.toFixed(0) : "0"}</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Earned</div>
+            </div>
+            <div className="rounded-2xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="font-mono-tabular text-xl font-bold mb-0.5 gradient-text">{referralStats?.bonusRate ?? 5}%</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Your rate</div>
             </div>
           </div>
-          <div className="rounded-2xl px-5 py-3 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <span className="text-xs" style={{ color: "rgba(245,242,234,0.45)" }}>Bonus rate per plan purchase</span>
-            <span className="font-mono-tabular text-base font-bold gradient-text">{referralStats?.bonusRate ?? 5}%</span>
+
+          {/* Referred users list */}
+          <div className="rounded-3xl p-4 mb-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "rgba(245,242,234,0.4)" }}>
+              People you referred ({referralDetailsLoading ? "…" : (referralDetails?.referredUsers.length ?? 0)})
+            </div>
+            {referralDetailsLoading ? (
+              <div className="text-xs text-center py-4" style={{ color: "rgba(245,242,234,0.3)" }}>Loading…</div>
+            ) : (referralDetails?.referredUsers ?? []).length === 0 ? (
+              <div className="text-xs text-center py-4" style={{ color: "rgba(245,242,234,0.3)" }}>No referrals yet. Share your link to earn!</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {referralDetails!.referredUsers.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between px-3 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>{u.name}</div>
+                      <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>Joined {new Date(u.joinedAt).toLocaleDateString()}</div>
+                    </div>
+                    <div className="text-right">
+                      {parseInt(u.plansBought) > 0 ? (
+                        <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875" }}>
+                          {u.plansBought} plan{parseInt(u.plansBought) > 1 ? "s" : ""} bought
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(245,242,234,0.35)" }}>
+                          No plan yet
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bonus earnings history */}
+          <div className="rounded-3xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "rgba(245,242,234,0.4)" }}>
+              Referral bonus history ({referralDetailsLoading ? "…" : (referralDetails?.bonuses.length ?? 0)})
+            </div>
+            {referralDetailsLoading ? (
+              <div className="text-xs text-center py-4" style={{ color: "rgba(245,242,234,0.3)" }}>Loading…</div>
+            ) : (referralDetails?.bonuses ?? []).length === 0 ? (
+              <div className="text-xs text-center py-4" style={{ color: "rgba(245,242,234,0.3)" }}>No bonus earnings yet.</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {referralDetails!.bonuses.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between px-3 py-2.5 rounded-2xl" style={{ background: "rgba(0,200,117,0.05)", border: "1px solid rgba(0,200,117,0.1)" }}>
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>{b.referredUserName}</div>
+                      <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{b.planName} · {new Date(b.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div className="font-mono-tabular font-bold text-sm" style={{ color: "#00C875" }}>+₨{parseFloat(b.amount).toFixed(0)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -429,14 +508,18 @@ export default function DashboardPage() {
         <div className="px-4 pt-4 pb-6 w-full max-w-2xl mx-auto">
           <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Plans</h2>
 
-          {/* Active plan banner */}
-          {myPlan && (
-            <div className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-3" style={{ background: "#0a2a18", border: "1px solid #1a4a2e" }}>
-              <Trophy size={16} style={{ color: "#00C875" }} />
-              <div className="min-w-0">
-                <div className="text-xs font-semibold" style={{ color: "#00C875" }}>Active: {myPlan.planName}</div>
-                <div className="text-xs" style={{ color: "#5a8a6a" }}>Until {new Date(myPlan.endDate || "").toLocaleDateString()}</div>
-              </div>
+          {/* Active plans banner — show all active plans */}
+          {myPlanIds.length > 0 && (
+            <div className="flex flex-col gap-2 mb-4">
+              {plans.filter(p => myPlanIds.includes(p.id)).map(p => (
+                <div key={p.id} className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "#0a2a18", border: "1px solid #1a4a2e" }}>
+                  <Trophy size={16} style={{ color: "#00C875" }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold" style={{ color: "#00C875" }}>Active: {p.name}</div>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875" }}>ACTIVE</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -504,11 +587,11 @@ export default function DashboardPage() {
                     {/* CTA */}
                     {myPlanIds.includes(plan.id) ? (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#0a2a18", border: "1px solid #1a4a2e", fontSize: 14, fontWeight: 700, color: "#00C875" }}>
-                        <CheckCircle2 size={16} color="#00C875" /> Plan Activated
+                        <CheckCircle2 size={16} color="#00C875" /> Plan Active
                       </div>
-                    ) : myPlan && !myPlanIds.includes(plan.id) ? (
+                    ) : purchasedPlanIds.includes(plan.id) ? (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 13, color: "rgba(245,242,234,0.35)" }}>
-                        <Lock size={13} /> You have an active plan
+                        <Lock size={13} /> Already Purchased
                       </div>
                     ) : isSoldOut ? (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 0", borderRadius: 16, background: "#111", fontSize: 14, color: "#444" }}>

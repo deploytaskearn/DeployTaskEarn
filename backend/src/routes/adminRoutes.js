@@ -48,5 +48,8 @@ router.delete('/mystery/prizes/:id', mysteryController.adminDeletePrize);
 router.get('/mystery/premium-prizes', mysteryController.adminGetPremiumPrizes);
 router.post('/mystery/premium-prizes', mysteryController.adminUpsertPremiumPrize);
 router.delete('/mystery/premium-prizes/:id', mysteryController.adminDeletePremiumPrize);
+// Mystery Box admin config (premium box price)
+router.get('/mystery/config', mysteryController.adminGetConfig);
+router.post('/mystery/config', mysteryController.adminSetConfig);
 
 module.exports = router;

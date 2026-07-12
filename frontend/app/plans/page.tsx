@@ -51,7 +51,7 @@ export default function PlansPage() {
               Invest smart, <span className="gradient-text">earn daily.</span>
             </h1>
             <p className="text-sm max-w-md mx-auto" style={{ color: "rgba(245,242,234,0.55)" }}>
-              Choose a plan, complete tasks every day, and earn real money. Refer friends to earn 5% bonus on every plan they buy.
+              Choose a plan, complete tasks every day, and earn real money. Refer friends to earn a referral bonus on every plan they buy.
             </p>
           </div>
 
@@ -62,8 +62,8 @@ export default function PlansPage() {
                 <Users size={16} style={{ color: "var(--color-gold)" }} />
               </div>
               <div>
-                <div className="text-sm font-semibold" style={{ color: "var(--color-gold)" }}>Referral Bonus — 5% per plan</div>
-                <div className="text-xs" style={{ color: "rgba(245,242,234,0.55)" }}>Share your link → friend buys plan → you earn 5% instantly.</div>
+                <div className="text-sm font-semibold" style={{ color: "var(--color-gold)" }}>Referral Bonus per plan</div>
+                <div className="text-xs" style={{ color: "rgba(245,242,234,0.55)" }}>Share your link → friend buys plan → you earn a bonus instantly.</div>
               </div>
             </div>
             {user ? (

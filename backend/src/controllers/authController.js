@@ -32,7 +32,7 @@ async function register(req, res) {
     let referredById = null;
     if (data.referralCode) {
       const referrer = await pool.query(
-        'SELECT id FROM "User" WHERE "referralCode" = $1',
+        'SELECT id FROM "User" WHERE UPPER("referralCode") = UPPER($1)',
         [data.referralCode]
       );
       if (referrer.rows.length > 0) {
