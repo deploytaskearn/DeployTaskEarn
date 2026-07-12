@@ -240,7 +240,42 @@ async function runMigrations() {
     `UPDATE "Plan" p SET "currentUsers" = (
        SELECT COUNT(*) FROM "UserPlan" up
        WHERE up."planId" = p.id AND up.status = 'ACTIVE'
-     )`  ,
+     )`,
+    // Set premium box price to Rs 500
+    `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('premium_box_price', '500', now())
+     ON CONFLICT (key) DO NOTHING`,
+    // Reseed Gold Spin segments — 80% RTP at Rs 500/spin (EV = Rs 400) [v2]
+    `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM "SiteSetting" WHERE key='gold_spin_segments_v2') THEN
+         DELETE FROM "GoldSpinSegment";
+         INSERT INTO "GoldSpinSegment" (label,"rewardAmount",weight,color,"isActive","sortOrder","segmentType") VALUES
+           ('Rs 10,000', 10000, 0.5,  '#1a0800', true, 0, 'PRIZE'),
+           ('Rs 5,000',   5000, 1,    '#1a0d00', true, 1, 'PRIZE'),
+           ('Rs 2,000',   2000, 4,    '#1a0d00', true, 2, 'PRIZE'),
+           ('Rs 1,000',   1000, 9,    '#1a0d00', true, 3, 'PRIZE'),
+           ('Rs 500',      500, 18,   '#1a0d00', true, 4, 'PRIZE'),
+           ('Rs 200',      200, 20,   '#150900', true, 5, 'PRIZE'),
+           ('Try Again',     0, 47.5, '#0f0700', true, 6, 'PRIZE');
+         INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('gold_spin_segments_v2', '1', now())
+           ON CONFLICT (key) DO UPDATE SET value='1', "updatedAt"=now();
+       END IF;
+     END $$`,
+    // Reseed Premium Box prizes — 80% RTP at Rs 500/box (EV = Rs 398) [v2]
+    `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM "SiteSetting" WHERE key='premium_box_prizes_v2') THEN
+         DELETE FROM "PremiumMysteryBoxPrize";
+         INSERT INTO "PremiumMysteryBoxPrize" (label,"rewardAmount",weight,"isActive","sortOrder") VALUES
+           ('Rs 5,000', 5000, 1,  true, 0),
+           ('Rs 2,000', 2000, 5,  true, 1),
+           ('Rs 1,000', 1000, 10, true, 2),
+           ('Rs 500',    500, 18, true, 3),
+           ('Rs 200',    200, 22, true, 4),
+           ('Rs 100',    100, 14, true, 5),
+           ('Better Luck Next Time', 0, 30, true, 6);
+         INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('premium_box_prizes_v2', '1', now())
+           ON CONFLICT (key) DO UPDATE SET value='1', "updatedAt"=now();
+       END IF;
+     END $$`,
   ];
   for (const stmt of patches) {
     try {
