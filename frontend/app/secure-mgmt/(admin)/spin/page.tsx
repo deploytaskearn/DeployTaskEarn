@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X, ToggleLeft, ToggleRight, Pencil } from "lucide-react";
+import { Plus, Trash2, X, ToggleLeft, ToggleRight, Pencil, Settings } from "lucide-react";
 import { RedeemCode } from "@/lib/types";
 
 interface Segment {
@@ -24,7 +24,7 @@ const INP = {
   outline: "none",
 };
 
-type TabId = "codes" | "segments" | "gold";
+type TabId = "codes" | "segments" | "gold" | "settings";
 
 export default function AdminSpinPage() {
   const [tab, setTab] = useState<TabId>("codes");
@@ -37,6 +37,9 @@ export default function AdminSpinPage() {
   const [segApiBase, setSegApiBase] = useState<"/admin/spin/segments" | "/admin/spin/gold-segments">("/admin/spin/segments");
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [goldSpinPrice, setGoldSpinPrice] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState("");
 
   function loadAll() {
     setLoading(true);
@@ -50,7 +53,24 @@ export default function AdminSpinPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    api.get<{ goldSpinPrice: number }>("/admin/spin/config")
+      .then(r => setGoldSpinPrice(String(r.data.goldSpinPrice)))
+      .catch(() => {});
+  }, []);
+
+  async function saveSpinConfig(e: React.FormEvent) {
+    e.preventDefault();
+    const price = parseFloat(goldSpinPrice);
+    if (isNaN(price) || price <= 0) return setConfigMsg("Enter a valid price.");
+    setSavingConfig(true); setConfigMsg("");
+    try {
+      await api.post("/admin/spin/config", { goldSpinPrice: price });
+      setConfigMsg("Saved!");
+    } catch { setConfigMsg("Save failed."); }
+    finally { setSavingConfig(false); }
+  }
 
   async function deleteSeg(id: string, gold: boolean) {
     const base = gold ? "/admin/spin/gold-segments" : "/admin/spin/segments";
@@ -77,21 +97,24 @@ export default function AdminSpinPage() {
   }
 
   const addButtonLabel = tab === "codes" ? "New Code" : tab === "gold" ? "New Gold Segment" : "New Segment";
+  const showAddButton = tab !== "settings";
 
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
         <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments, gold wheel, and redeem codes." />
-        <button
-          onClick={() => {
-            if (tab === "codes") setShowCodeForm(true);
-            else openSegForm(tab === "gold", null);
-          }}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
-          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-        >
-          <Plus size={15} /> {addButtonLabel}
-        </button>
+        {showAddButton && (
+          <button
+            onClick={() => {
+              if (tab === "codes") setShowCodeForm(true);
+              else openSegForm(tab === "gold", null);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+          >
+            <Plus size={15} /> {addButtonLabel}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -100,6 +123,7 @@ export default function AdminSpinPage() {
           { id: "codes" as TabId, label: "Redeem Codes" },
           { id: "segments" as TabId, label: "Normal Wheel" },
           { id: "gold" as TabId, label: "👑 Gold Wheel" },
+          { id: "settings" as TabId, label: "Settings" },
         ]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="px-4 py-2 rounded-lg text-sm font-semibold"
@@ -107,14 +131,48 @@ export default function AdminSpinPage() {
               background: tab === t.id
                 ? (t.id === "gold" ? "linear-gradient(90deg,#b8860b,#ffd700)" : "var(--color-accent)")
                 : "rgba(255,255,255,0.06)",
-              color: tab === t.id ? "#000" : "rgba(245,242,234,0.6)",
+              color: tab === t.id ? (t.id === "settings" ? "#fff" : "#000") : "rgba(245,242,234,0.6)",
             }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {loading ? (
+      {tab === "settings" ? (
+        <div style={{ maxWidth: 420 }}>
+          <div style={{ padding: 24, borderRadius: 18, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <Settings size={18} color="#00C875" />
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA" }}>Gold Wheel Price</h3>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginBottom: 20, lineHeight: 1.6 }}>
+              How much a user pays (from their wallet) to spin the Gold Wheel once.
+            </p>
+            <form onSubmit={saveSpinConfig} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,242,234,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                  Price (Rs)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={goldSpinPrice}
+                  onChange={e => setGoldSpinPrice(e.target.value)}
+                  placeholder="500"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#F5F2EA", fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              {configMsg && (
+                <div style={{ fontSize: 13, color: configMsg === "Saved!" ? "#00C875" : "#E8633A" }}>{configMsg}</div>
+              )}
+              <button type="submit" disabled={savingConfig}
+                style={{ padding: "12px 0", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: savingConfig ? 0.6 : 1 }}>
+                {savingConfig ? "Saving…" : "Save Price"}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : loading ? (
         <div style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>
       ) : tab === "codes" ? (
         <CodesTable

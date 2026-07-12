@@ -1,8 +1,13 @@
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 
-const GOLD_SPIN_PRICE = 500; // Rs — cost to buy one gold spin
-const PREMIUM_BOX_PRICE = 50; // Rs — used by mystery controller
+async function getGoldSpinPrice() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='gold_spin_price' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseFloat(r.rows[0].value);
+  } catch {}
+  return 500;
+}
 
 async function getSecondsUntilNextSpin(userId) {
   const last = await pool.query(
@@ -43,13 +48,15 @@ async function getSpinInfo(req, res) {
     const wb = await walletService.getBalance(userId);
     const walletBalance = parseFloat(wb.balance ?? 0);
 
+    const goldSpinPrice = await getGoldSpinPrice();
+
     res.json({
       segments: segs.rows,
       canSpin,
       spinsToday,
       secondsUntilSpin,
       goldSegments: goldSegs.rows,
-      goldSpinPrice: GOLD_SPIN_PRICE,
+      goldSpinPrice,
       walletBalance,
     });
   } catch (err) {
@@ -117,6 +124,7 @@ async function spin(req, res) {
 async function buyAndSpinGold(req, res) {
   try {
     const userId = req.user.id;
+    const GOLD_SPIN_PRICE = await getGoldSpinPrice();
 
     // Deduct from wallet (throws INSUFFICIENT_BALANCE if not enough)
     try {
@@ -271,10 +279,33 @@ async function adminDeleteCode(req, res) {
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
+// Admin — spin config (gold spin price)
+async function adminGetSpinConfig(req, res) {
+  try {
+    const price = await getGoldSpinPrice();
+    res.json({ goldSpinPrice: price });
+  } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
+}
+
+async function adminSetSpinConfig(req, res) {
+  try {
+    const { goldSpinPrice } = req.body;
+    if (goldSpinPrice === undefined || isNaN(parseFloat(goldSpinPrice))) {
+      return res.status(400).json({ error: 'goldSpinPrice is required' });
+    }
+    await pool.query(
+      `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('gold_spin_price', $1, now())
+       ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+      [String(parseFloat(goldSpinPrice))]
+    );
+    res.json({ ok: true, goldSpinPrice: parseFloat(goldSpinPrice) });
+  } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
+}
+
 module.exports = {
   getSpinInfo, spin, buyAndSpinGold, redeemCode,
   adminGetSegments, adminUpsertSegment, adminDeleteSegment,
   adminGetGoldSegments, adminUpsertGoldSegment, adminDeleteGoldSegment,
   adminGetCodes, adminCreateCode, adminToggleCode, adminDeleteCode,
-  GOLD_SPIN_PRICE,
+  adminGetSpinConfig, adminSetSpinConfig,
 };

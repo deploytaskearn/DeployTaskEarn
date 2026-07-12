@@ -39,6 +39,9 @@ router.get('/spin/codes', spinController.adminGetCodes);
 router.post('/spin/codes', spinController.adminCreateCode);
 router.patch('/spin/codes/:id/toggle', spinController.adminToggleCode);
 router.delete('/spin/codes/:id', spinController.adminDeleteCode);
+// Spin config (gold spin price)
+router.get('/spin/config', spinController.adminGetSpinConfig);
+router.post('/spin/config', spinController.adminSetSpinConfig);
 
 // Mystery Box admin (free prizes)
 router.get('/mystery/prizes', mysteryController.adminGetPrizes);
