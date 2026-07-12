@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X, ToggleLeft, ToggleRight, Pencil, Settings } from "lucide-react";
-import { RedeemCode } from "@/lib/types";
+import { Plus, Trash2, X, Pencil, Settings } from "lucide-react";
 
 interface Segment {
   id: string;
@@ -24,18 +23,16 @@ const INP = {
   outline: "none",
 };
 
-type TabId = "codes" | "segments" | "gold" | "settings";
+type TabId = "segments" | "gold" | "settings";
 
 export default function AdminSpinPage() {
-  const [tab, setTab] = useState<TabId>("codes");
+  const [tab, setTab] = useState<TabId>("segments");
   const [segments, setSegments] = useState<Segment[]>([]);
   const [goldSegments, setGoldSegments] = useState<Segment[]>([]);
-  const [codes, setCodes] = useState<RedeemCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSegForm, setShowSegForm] = useState(false);
   const [editSeg, setEditSeg] = useState<Segment | null>(null);
   const [segApiBase, setSegApiBase] = useState<"/admin/spin/segments" | "/admin/spin/gold-segments">("/admin/spin/segments");
-  const [showCodeForm, setShowCodeForm] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [goldSpinPrice, setGoldSpinPrice] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
@@ -46,9 +43,8 @@ export default function AdminSpinPage() {
     Promise.all([
       api.get<Segment[]>("/admin/spin/segments"),
       api.get<Segment[]>("/admin/spin/gold-segments"),
-      api.get<RedeemCode[]>("/admin/spin/codes"),
     ])
-      .then(([s, g, c]) => { setSegments(s.data); setGoldSegments(g.data); setCodes(c.data); })
+      .then(([s, g]) => { setSegments(s.data); setGoldSegments(g.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
@@ -79,36 +75,22 @@ export default function AdminSpinPage() {
     loadAll();
   }
 
-  async function deleteCode(id: string) {
-    await api.delete(`/admin/spin/codes/${id}`);
-    setConfirmDel(null);
-    loadAll();
-  }
-
-  async function toggleCode(id: string) {
-    await api.patch(`/admin/spin/codes/${id}/toggle`);
-    loadAll();
-  }
-
   function openSegForm(gold: boolean, seg: Segment | null) {
     setSegApiBase(gold ? "/admin/spin/gold-segments" : "/admin/spin/segments");
     setEditSeg(seg);
     setShowSegForm(true);
   }
 
-  const addButtonLabel = tab === "codes" ? "New Code" : tab === "gold" ? "New Gold Segment" : "New Segment";
+  const addButtonLabel = tab === "gold" ? "New Gold Segment" : "New Segment";
   const showAddButton = tab !== "settings";
 
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
-        <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments, gold wheel, and redeem codes." />
+        <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments and gold wheel." />
         {showAddButton && (
           <button
-            onClick={() => {
-              if (tab === "codes") setShowCodeForm(true);
-              else openSegForm(tab === "gold", null);
-            }}
+            onClick={() => openSegForm(tab === "gold", null)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
             style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
           >
@@ -120,7 +102,6 @@ export default function AdminSpinPage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {([
-          { id: "codes" as TabId, label: "Redeem Codes" },
           { id: "segments" as TabId, label: "Normal Wheel" },
           { id: "gold" as TabId, label: "👑 Gold Wheel" },
           { id: "settings" as TabId, label: "Settings" },
@@ -174,14 +155,6 @@ export default function AdminSpinPage() {
         </div>
       ) : loading ? (
         <div style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>
-      ) : tab === "codes" ? (
-        <CodesTable
-          codes={codes}
-          confirmDel={confirmDel}
-          setConfirmDel={setConfirmDel}
-          onToggle={toggleCode}
-          onDelete={deleteCode}
-        />
       ) : tab === "gold" ? (
         <SegmentsTable
           segments={goldSegments}
@@ -200,10 +173,6 @@ export default function AdminSpinPage() {
           onEdit={(s) => openSegForm(false, s)}
           onDelete={(id) => deleteSeg(id, false)}
         />
-      )}
-
-      {showCodeForm && (
-        <CodeModal onClose={() => setShowCodeForm(false)} onSaved={() => { setShowCodeForm(false); loadAll(); }} />
       )}
 
       {showSegForm && (
