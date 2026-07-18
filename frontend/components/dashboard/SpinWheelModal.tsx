@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { X, Clock, Crown } from "lucide-react";
+import { X, Clock, Crown, Ticket } from "lucide-react";
 import api from "@/lib/api";
 import { SpinSegment, SpinInfo, SpinResult } from "@/lib/types";
 import { WheelSVG } from "@/components/dashboard/WheelSVG";
@@ -30,6 +30,10 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
   const [freeRotation, setFreeRotation] = useState(0);
   const [freeResult, setFreeResult] = useState<SpinResult | null>(null);
   const prevFreeRot = useRef(0);
+
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [error, setError] = useState("");
 
@@ -73,7 +77,7 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
       setTimeout(() => {
         setFreeResult(res.data);
         setFreeSpinning(false);
-        setCanSpin(false);
+        setCanSpin(info?.freeSpinTestMode ? true : false);
         setSecondsUntilSpin(res.data.secondsUntilSpin ?? 0);
         if (parseFloat(res.data.winner.rewardAmount) > 0) onWin();
       }, 5200);
@@ -81,6 +85,24 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Spin failed.";
       setError(msg);
       setFreeSpinning(false);
+    }
+  }
+
+  async function handleRedeem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!redeemCode.trim() || redeemLoading) return;
+    setRedeemLoading(true);
+    setRedeemMsg(null);
+    try {
+      const r = await api.post<{ reward: number; message: string }>("/spin/redeem", { code: redeemCode.trim() });
+      setRedeemMsg({ ok: true, text: r.data.message });
+      setRedeemCode("");
+      onWin();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Invalid code.";
+      setRedeemMsg({ ok: false, text: msg });
+    } finally {
+      setRedeemLoading(false);
     }
   }
 
@@ -105,7 +127,9 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
         <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 8px" }}>
           <div>
             <div style={{ fontSize: 26, fontWeight: 900, color: "#F5F2EA" }}>🎡 Lucky Wheel</div>
-            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)", marginTop: 2 }}>1 free spin daily!</div>
+            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.5)", marginTop: 2 }}>
+              {info?.freeSpinTestMode ? "🧪 Testing mode — cooldown disabled" : "1 free spin daily!"}
+            </div>
           </div>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 12, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
             <X size={18} color="#F5F2EA" />
@@ -130,10 +154,10 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
             )}
           </div>
 
-          {!freeResult && !freeSpinning && (
+          {(!freeResult || canSpin) && !freeSpinning && (
             <button onClick={handleFreeSpin} disabled={!canSpin}
               style={{ marginTop: 12, padding: "14px 0", width: 280, borderRadius: 99, background: canSpin ? "linear-gradient(90deg,#1a7a40 0%,#00C875 50%,#1a7a40 100%)" : "rgba(255,255,255,0.08)", border: "none", cursor: canSpin ? "pointer" : "default", fontSize: 15, fontWeight: 800, color: canSpin ? "#fff" : "rgba(245,242,234,0.35)", boxShadow: canSpin ? "0 4px 24px rgba(0,200,117,0.3)" : "none" }}>
-              {canSpin ? "🎁 Spin & Win!" : "Come back tomorrow!"}
+              {canSpin ? (freeResult ? "🎁 Spin Again" : "🎁 Spin & Win!") : "Come back tomorrow!"}
             </button>
           )}
 
@@ -204,6 +228,26 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
           <div style={{ fontSize: 22, color: "#ffd700", flexShrink: 0 }}>›</div>
         </button>
 
+        {/* ─── REDEEM CODE ─── */}
+        <div style={{ marginTop: 16, width: "calc(100% - 40px)", padding: "16px 18px", borderRadius: 18, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Ticket size={14} color="#00C875" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#F5F2EA" }}>Redeem Code</span>
+          </div>
+          {redeemMsg && (
+            <div style={{ padding: "9px 12px", borderRadius: 10, marginBottom: 10, fontSize: 12, background: redeemMsg.ok ? "rgba(0,200,117,0.1)" : "rgba(232,99,58,0.1)", color: redeemMsg.ok ? "#00C875" : "#E8633A", border: `1px solid ${redeemMsg.ok ? "rgba(0,200,117,0.3)" : "rgba(232,99,58,0.3)"}` }}>
+              {redeemMsg.text}
+            </div>
+          )}
+          <form onSubmit={handleRedeem} style={{ display: "flex", gap: 8 }}>
+            <input value={redeemCode} onChange={e => setRedeemCode(e.target.value.toUpperCase())} placeholder="Enter code…"
+              style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", color: "#F5F2EA", fontSize: 12, outline: "none", fontFamily: "monospace", letterSpacing: 1 }} />
+            <button type="submit" disabled={redeemLoading || !redeemCode.trim()}
+              style={{ padding: "9px 14px", borderRadius: 10, background: "#00C875", color: "#000", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, opacity: redeemLoading || !redeemCode.trim() ? 0.5 : 1 }}>
+              {redeemLoading ? "…" : "Claim"}
+            </button>
+          </form>
+        </div>
 
       </div>
 

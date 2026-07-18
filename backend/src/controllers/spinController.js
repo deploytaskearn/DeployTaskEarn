@@ -9,6 +9,14 @@ async function getGoldSpinPrice() {
   return 500;
 }
 
+async function getFreeSpinTestMode() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='free_spin_test_mode' LIMIT 1`);
+    return r.rows.length && r.rows[0].value === '1';
+  } catch {}
+  return false;
+}
+
 async function getSecondsUntilNextSpin(userId) {
   const last = await pool.query(
     `SELECT "spunAt" FROM "UserSpin" WHERE "userId"=$1 ORDER BY "spunAt" DESC LIMIT 1`,
@@ -22,14 +30,15 @@ async function getSecondsUntilNextSpin(userId) {
 async function getSpinInfo(req, res) {
   try {
     const userId = req.user.id;
+    const testMode = await getFreeSpinTestMode();
 
-    // ALL users: 1 free spin per 24h rolling window
+    // ALL users: 1 free spin per 24h rolling window (bypassed when test mode is on)
     const r = await pool.query(
       `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
       [userId]
     );
     const spinsToday = parseInt(r.rows[0].count);
-    const canSpin = spinsToday < 1;
+    const canSpin = testMode || spinsToday < 1;
     const secondsUntilSpin = canSpin ? 0 : await getSecondsUntilNextSpin(userId);
 
     // Free wheel segments
@@ -58,6 +67,7 @@ async function getSpinInfo(req, res) {
       goldSegments: goldSegs.rows,
       goldSpinPrice,
       walletBalance,
+      freeSpinTestMode: testMode,
     });
   } catch (err) {
     console.error('getSpinInfo:', err);
@@ -68,14 +78,15 @@ async function getSpinInfo(req, res) {
 async function spin(req, res) {
   try {
     const userId = req.user.id;
+    const testMode = await getFreeSpinTestMode();
 
-    // 1 free spin per 24h — all users
+    // 1 free spin per 24h — all users (bypassed when test mode is on)
     const r = await pool.query(
       `SELECT COUNT(*) FROM "UserSpin" WHERE "userId"=$1 AND "spunAt" > now() - interval '24 hours'`,
       [userId]
     );
     const spinsToday = parseInt(r.rows[0].count);
-    if (spinsToday >= 1) {
+    if (!testMode && spinsToday >= 1) {
       const secs = await getSecondsUntilNextSpin(userId);
       const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
       return res.status(422).json({
@@ -281,26 +292,41 @@ async function adminDeleteCode(req, res) {
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
-// Admin — spin config (gold spin price)
+// Admin — spin config (gold spin price, free spin test mode)
 async function adminGetSpinConfig(req, res) {
   try {
     const price = await getGoldSpinPrice();
-    res.json({ goldSpinPrice: price });
+    const freeSpinTestMode = await getFreeSpinTestMode();
+    res.json({ goldSpinPrice: price, freeSpinTestMode });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 async function adminSetSpinConfig(req, res) {
   try {
-    const { goldSpinPrice } = req.body;
-    if (goldSpinPrice === undefined || isNaN(parseFloat(goldSpinPrice))) {
-      return res.status(400).json({ error: 'goldSpinPrice is required' });
+    const { goldSpinPrice, freeSpinTestMode } = req.body;
+
+    if (goldSpinPrice !== undefined) {
+      if (isNaN(parseFloat(goldSpinPrice))) {
+        return res.status(400).json({ error: 'goldSpinPrice must be a number' });
+      }
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('gold_spin_price', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [String(parseFloat(goldSpinPrice))]
+      );
     }
-    await pool.query(
-      `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('gold_spin_price', $1, now())
-       ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
-      [String(parseFloat(goldSpinPrice))]
-    );
-    res.json({ ok: true, goldSpinPrice: parseFloat(goldSpinPrice) });
+
+    if (freeSpinTestMode !== undefined) {
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('free_spin_test_mode', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [freeSpinTestMode ? '1' : '0']
+      );
+    }
+
+    const price = await getGoldSpinPrice();
+    const testMode = await getFreeSpinTestMode();
+    res.json({ ok: true, goldSpinPrice: price, freeSpinTestMode: testMode });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 

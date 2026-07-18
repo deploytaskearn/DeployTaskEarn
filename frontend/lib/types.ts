@@ -166,6 +166,7 @@ export interface SpinInfo {
   goldSegments: SpinSegment[];
   goldSpinPrice: number;
   walletBalance: number;
+  freeSpinTestMode?: boolean;
 }
 
 export interface SpinResult {

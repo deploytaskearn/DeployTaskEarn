@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X, Pencil, Settings } from "lucide-react";
+import { Plus, Trash2, X, Pencil, Settings, ToggleLeft, ToggleRight, FlaskConical } from "lucide-react";
+import { RedeemCode } from "@/lib/types";
 
 interface Segment {
   id: string;
@@ -23,19 +24,23 @@ const INP = {
   outline: "none",
 };
 
-type TabId = "segments" | "gold" | "settings";
+type TabId = "codes" | "segments" | "gold" | "settings";
 
 export default function AdminSpinPage() {
   const [tab, setTab] = useState<TabId>("segments");
   const [segments, setSegments] = useState<Segment[]>([]);
   const [goldSegments, setGoldSegments] = useState<Segment[]>([]);
+  const [codes, setCodes] = useState<RedeemCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSegForm, setShowSegForm] = useState(false);
   const [editSeg, setEditSeg] = useState<Segment | null>(null);
   const [segApiBase, setSegApiBase] = useState<"/admin/spin/segments" | "/admin/spin/gold-segments">("/admin/spin/segments");
+  const [showCodeForm, setShowCodeForm] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [goldSpinPrice, setGoldSpinPrice] = useState("");
+  const [freeSpinTestMode, setFreeSpinTestMode] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [savingTestMode, setSavingTestMode] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
 
   function loadAll() {
@@ -43,16 +48,17 @@ export default function AdminSpinPage() {
     Promise.all([
       api.get<Segment[]>("/admin/spin/segments"),
       api.get<Segment[]>("/admin/spin/gold-segments"),
+      api.get<RedeemCode[]>("/admin/spin/codes"),
     ])
-      .then(([s, g]) => { setSegments(s.data); setGoldSegments(g.data); })
+      .then(([s, g, c]) => { setSegments(s.data); setGoldSegments(g.data); setCodes(c.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
     loadAll();
-    api.get<{ goldSpinPrice: number }>("/admin/spin/config")
-      .then(r => setGoldSpinPrice(String(r.data.goldSpinPrice)))
+    api.get<{ goldSpinPrice: number; freeSpinTestMode: boolean }>("/admin/spin/config")
+      .then(r => { setGoldSpinPrice(String(r.data.goldSpinPrice)); setFreeSpinTestMode(!!r.data.freeSpinTestMode); })
       .catch(() => {});
   }, []);
 
@@ -68,10 +74,30 @@ export default function AdminSpinPage() {
     finally { setSavingConfig(false); }
   }
 
+  async function toggleTestMode() {
+    setSavingTestMode(true);
+    try {
+      const r = await api.post<{ freeSpinTestMode: boolean }>("/admin/spin/config", { freeSpinTestMode: !freeSpinTestMode });
+      setFreeSpinTestMode(!!r.data.freeSpinTestMode);
+    } catch { /* ignore, leave state as-is */ }
+    finally { setSavingTestMode(false); }
+  }
+
   async function deleteSeg(id: string, gold: boolean) {
     const base = gold ? "/admin/spin/gold-segments" : "/admin/spin/segments";
     await api.delete(`${base}/${id}`);
     setConfirmDel(null);
+    loadAll();
+  }
+
+  async function deleteCode(id: string) {
+    await api.delete(`/admin/spin/codes/${id}`);
+    setConfirmDel(null);
+    loadAll();
+  }
+
+  async function toggleCode(id: string) {
+    await api.patch(`/admin/spin/codes/${id}/toggle`);
     loadAll();
   }
 
@@ -81,16 +107,19 @@ export default function AdminSpinPage() {
     setShowSegForm(true);
   }
 
-  const addButtonLabel = tab === "gold" ? "New Gold Segment" : "New Segment";
+  const addButtonLabel = tab === "codes" ? "New Code" : tab === "gold" ? "New Gold Segment" : "New Segment";
   const showAddButton = tab !== "settings";
 
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
-        <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments and gold wheel." />
+        <AdminPageHeader title="Spin Wheel" subtitle="Manage wheel segments, gold wheel, and redeem codes." />
         {showAddButton && (
           <button
-            onClick={() => openSegForm(tab === "gold", null)}
+            onClick={() => {
+              if (tab === "codes") setShowCodeForm(true);
+              else openSegForm(tab === "gold", null);
+            }}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium"
             style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
           >
@@ -104,6 +133,7 @@ export default function AdminSpinPage() {
         {([
           { id: "segments" as TabId, label: "Normal Wheel" },
           { id: "gold" as TabId, label: "👑 Gold Wheel" },
+          { id: "codes" as TabId, label: "Redeem Codes" },
           { id: "settings" as TabId, label: "Settings" },
         ]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -152,7 +182,35 @@ export default function AdminSpinPage() {
               </button>
             </form>
           </div>
+
+          <div style={{ marginTop: 20, padding: 24, borderRadius: 18, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <FlaskConical size={18} color="#7EB8FF" />
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA" }}>Free Spin Testing Mode</h3>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginBottom: 18, lineHeight: 1.6 }}>
+              When enabled, the 24-hour cooldown on the Free Spin wheel is disabled for every user — anyone can spin repeatedly without waiting. Turn this off before going back to production.
+            </p>
+            <button onClick={toggleTestMode} disabled={savingTestMode}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-60"
+              style={{
+                background: freeSpinTestMode ? "rgba(126,184,255,0.15)" : "rgba(255,255,255,0.06)",
+                color: freeSpinTestMode ? "#7EB8FF" : "rgba(245,242,234,0.6)",
+                border: `1px solid ${freeSpinTestMode ? "rgba(126,184,255,0.35)" : "rgba(255,255,255,0.1)"}`,
+              }}>
+              {freeSpinTestMode ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+              {savingTestMode ? "Saving…" : freeSpinTestMode ? "Testing mode ON — cooldown disabled" : "Testing mode OFF — normal 24h cooldown"}
+            </button>
+          </div>
         </div>
+      ) : tab === "codes" ? (
+        <CodesTable
+          codes={codes}
+          confirmDel={confirmDel}
+          setConfirmDel={setConfirmDel}
+          onToggle={toggleCode}
+          onDelete={deleteCode}
+        />
       ) : loading ? (
         <div style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>
       ) : tab === "gold" ? (
@@ -184,6 +242,124 @@ export default function AdminSpinPage() {
           onSaved={() => { setShowSegForm(false); setEditSeg(null); loadAll(); }}
         />
       )}
+
+      {showCodeForm && (
+        <CodeModal onClose={() => setShowCodeForm(false)} onSaved={() => { setShowCodeForm(false); loadAll(); }} />
+      )}
+    </div>
+  );
+}
+
+function CodesTable({ codes, confirmDel, setConfirmDel, onToggle, onDelete }: {
+  codes: RedeemCode[];
+  confirmDel: string | null;
+  setConfirmDel: (id: string | null) => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  if (!codes.length) return (
+    <div className="p-10 text-center rounded-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--color-muted)" }}>
+      No redeem codes yet. Create one above.
+    </div>
+  );
+
+  return (
+    <div className="rounded-sm overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      {codes.map(c => (
+        <div key={c.id} className="ledger-row flex items-center justify-between gap-3 px-5 py-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="font-mono font-bold text-sm" style={{ color: "var(--color-surface)", letterSpacing: 1 }}>{c.code}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${c.isActive ? "" : "opacity-50"}`}
+                style={{ background: c.isActive ? "rgba(0,200,117,0.1)" : "rgba(255,255,255,0.05)", color: c.isActive ? "var(--color-accent)" : "var(--color-muted)" }}>
+                {c.isActive ? "Active" : "Disabled"}
+              </span>
+            </div>
+            <div className="text-xs" style={{ color: "var(--color-muted)" }}>
+              Rs {parseFloat(c.rewardAmount).toLocaleString()} · Used {c.usedCount}/{c.maxUses}
+              {c.expiresAt && ` · Expires ${new Date(c.expiresAt).toLocaleDateString()}`}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => onToggle(c.id)} title={c.isActive ? "Disable" : "Enable"}
+              style={{ color: c.isActive ? "var(--color-accent)" : "var(--color-muted)" }}>
+              {c.isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+            </button>
+            {confirmDel === c.id ? (
+              <>
+                <button onClick={() => onDelete(c.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "rgba(232,99,58,0.9)", color: "#fff" }}>Delete</button>
+                <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.07)" }}><X size={13} style={{ color: "rgba(245,242,234,0.6)" }} /></button>
+              </>
+            ) : (
+              <button onClick={() => setConfirmDel(c.id)} style={{ color: "var(--color-alert)" }}><Trash2 size={16} /></button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CodeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ code: "", rewardAmount: "", maxUses: "1", expiresAt: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await api.post("/admin/spin/codes", {
+        code: form.code.trim().toUpperCase(),
+        rewardAmount: parseFloat(form.rewardAmount),
+        maxUses: parseInt(form.maxUses) || 1,
+        expiresAt: form.expiresAt || null,
+      });
+      onSaved();
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to create code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,15,13,0.88)" }} onClick={onClose}>
+      <div className="w-full max-w-md p-6 rounded-sm" style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>New Redeem Code</h3>
+          <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
+        </div>
+        {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Code *</span>
+            <input required value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
+              placeholder="e.g. WELCOME100" className="px-3 py-2.5 rounded-sm text-sm font-mono tracking-wider" style={INP} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Reward Amount (PKR) *</span>
+            <input required type="number" min="1" step="1" value={form.rewardAmount} onChange={e => setForm({ ...form, rewardAmount: e.target.value })}
+              placeholder="e.g. 500" className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Max Uses</span>
+            <input type="number" min="1" value={form.maxUses} onChange={e => setForm({ ...form, maxUses: e.target.value })}
+              className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Expiry Date (optional)</span>
+            <input type="datetime-local" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })}
+              className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
+          </label>
+          <button type="submit" disabled={loading}
+            className="mt-1 px-4 py-3 rounded-sm text-sm font-medium disabled:opacity-60"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
+            {loading ? "Creating…" : "Create Code"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
