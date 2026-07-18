@@ -41,6 +41,7 @@ export function WheelSVG({
   const centerOut = gold ? "#0f0800" : "#071810";
 
   return (
+    <div style={{ position: "relative", width: size, height: size }}>
     <svg width={size} height={size} viewBox="0 0 340 340" style={{
       display: "block",
       transform: `rotate(${rotation}deg)`,
@@ -99,11 +100,17 @@ export function WheelSVG({
         return <line key={i} x1={cx} y1={cy} x2={cx + R * Math.cos(a)} y2={cy + R * Math.sin(a)}
           stroke={centerOut} strokeWidth="2" />;
       })}
+    </svg>
+    {/* Static center hub — kept outside the rotating svg so the "SPIN" label never spins */}
+    <svg width={size} height={size} viewBox="0 0 340 340" style={{
+      position: "absolute", top: 0, left: 0, pointerEvents: "none",
+    }}>
       <circle cx={cx} cy={cy} r={52} fill={centerOut} stroke={inner} strokeWidth="3" />
       <circle cx={cx} cy={cy} r={46} fill={centerIn} stroke={ring} strokeWidth="1" opacity="0.5" />
       <circle cx={cx} cy={cy} r={40} fill={centerFill} />
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="900"
         fill="#fff" style={{ fontFamily: "system-ui,sans-serif", letterSpacing: 2 }}>SPIN</text>
     </svg>
+    </div>
   );
 }

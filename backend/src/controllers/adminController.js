@@ -291,7 +291,14 @@ async function deleteTask(req, res) {
 async function listAllTasksAdmin(req, res) {
   try {
     const result = await pool.query(
-      `SELECT t.*, tc.name as "categoryName" FROM "Task" t
+      `SELECT t.*, tc.name as "categoryName",
+         COALESCE(
+           (SELECT json_agg(json_build_object('id', p.id, 'name', p.name))
+            FROM "PlanTask" pt JOIN "Plan" p ON p.id = pt."planId"
+            WHERE pt."taskId" = t.id),
+           '[]'
+         ) as "plans"
+       FROM "Task" t
        LEFT JOIN "TaskCategory" tc ON tc.id = t."categoryId"
        ORDER BY t."createdAt" DESC`
     );

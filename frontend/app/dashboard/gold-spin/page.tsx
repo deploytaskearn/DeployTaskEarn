@@ -49,7 +49,8 @@ export default function GoldSpinPage() {
     setResult(null);
     try {
       const res = await api.post<GoldSpinResult>("/spin/buy-gold-spin");
-      const { winnerIndex, totalSegments } = res.data;
+      const { winnerIndex, totalSegments, segments } = res.data;
+      if (segments?.length) setGoldSegments(segments);
       setSpinning(true);
       const segAngle = 360 / totalSegments;
       const toWinner = (360 - segAngle / 2) - winnerIndex * segAngle;

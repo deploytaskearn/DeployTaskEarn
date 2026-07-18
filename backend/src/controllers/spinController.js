@@ -113,6 +113,7 @@ async function spin(req, res) {
       winner: { id: winner.id, label: winner.label, rewardAmount: String(rewardAmount), segmentType: winner.segmentType },
       winnerIndex,
       totalSegments: segs.rows.length,
+      segments: segs.rows,
       secondsUntilSpin: secs,
     });
   } catch (err) {
@@ -169,6 +170,7 @@ async function buyAndSpinGold(req, res) {
       winner: { id: winner.id, label: winner.label, rewardAmount: String(rewardAmount), segmentType: winner.segmentType },
       winnerIndex,
       totalSegments: segs.rows.length,
+      segments: segs.rows,
       walletBalance: parseFloat(wb.balance ?? 0),
     });
   } catch (err) {

@@ -58,7 +58,10 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
     setError("");
     try {
       const res = await api.post<SpinResult>("/spin/spin");
-      const { winnerIndex, totalSegments } = res.data;
+      const { winnerIndex, totalSegments, segments: freshSegments } = res.data;
+      if (freshSegments?.length) {
+        setInfo((prev) => (prev ? { ...prev, segments: freshSegments } : prev));
+      }
       const segAngle = 360 / totalSegments;
       const toWinner = (360 - segAngle / 2) - winnerIndex * segAngle;
       const finalRot = prevFreeRot.current + 1800 + toWinner;

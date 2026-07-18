@@ -68,9 +68,22 @@ export default function AdminTasksPage() {
                       {t.status}
                     </span>
                   </div>
-                  <div className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    ₨{parseFloat(t.rewardAmount).toFixed(2)} · Social Media
-                    {t.externalUrl && <> · <span style={{ color: "rgba(0,200,117,0.6)" }}>URL</span></>}
+                  <div className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: "var(--color-muted)" }}>
+                    <span>₨{parseFloat(t.rewardAmount).toFixed(2)} · Social Media</span>
+                    {t.externalUrl && <span style={{ color: "rgba(0,200,117,0.6)" }}>· URL</span>}
+                    {t.plans && t.plans.length > 0 ? (
+                      t.plans.map((p) => (
+                        <span key={p.id} className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: "rgba(100,160,255,0.12)", color: "#7EB8FF" }}>
+                          {p.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: "rgba(255,255,255,0.06)", color: "rgba(245,242,234,0.4)" }}>
+                        Free task
+                      </span>
+                    )}
                   </div>
                 </div>
 

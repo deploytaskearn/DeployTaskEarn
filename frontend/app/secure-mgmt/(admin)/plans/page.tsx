@@ -55,7 +55,6 @@ export default function AdminPlansPage() {
   }
 
   async function loadAllTasks() {
-    if (allTasks.length > 0) return;
     try {
       const r = await api.get("/admin/tasks");
       setAllTasks(r.data);

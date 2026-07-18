@@ -33,6 +33,7 @@ export interface Task {
   planName?: string | null;
   taskPlanId?: string | null;
   isFreeTask?: boolean;
+  plans?: { id: string; name: string }[];
   createdAt: string;
 }
 
@@ -171,6 +172,7 @@ export interface SpinResult {
   winner: { id: string; label: string; rewardAmount: string; segmentType: string };
   winnerIndex: number;
   totalSegments: number;
+  segments: SpinSegment[];
   secondsUntilSpin: number;
 }
 
@@ -178,6 +180,7 @@ export interface GoldSpinResult {
   winner: { id: string; label: string; rewardAmount: string; segmentType: string };
   winnerIndex: number;
   totalSegments: number;
+  segments: SpinSegment[];
   walletBalance: number;
 }
 
