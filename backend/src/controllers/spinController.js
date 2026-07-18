@@ -12,7 +12,7 @@ async function getGoldSpinPrice() {
 async function getFreeSpinTestMode() {
   try {
     const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='free_spin_test_mode' LIMIT 1`);
-    return r.rows.length && r.rows[0].value === '1';
+    return !!(r.rows.length && r.rows[0].value === '1');
   } catch {}
   return false;
 }
