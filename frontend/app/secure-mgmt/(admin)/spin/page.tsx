@@ -188,56 +188,6 @@ export default function AdminSpinPage() {
   );
 }
 
-function CodesTable({ codes, confirmDel, setConfirmDel, onToggle, onDelete }: {
-  codes: RedeemCode[];
-  confirmDel: string | null;
-  setConfirmDel: (id: string | null) => void;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  if (!codes.length) return (
-    <div className="p-10 text-center rounded-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--color-muted)" }}>
-      No redeem codes yet. Create one above.
-    </div>
-  );
-
-  return (
-    <div className="rounded-sm overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      {codes.map(c => (
-        <div key={c.id} className="ledger-row flex items-center justify-between gap-3 px-5 py-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-mono font-bold text-sm" style={{ color: "var(--color-surface)", letterSpacing: 1 }}>{c.code}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${c.isActive ? "" : "opacity-50"}`}
-                style={{ background: c.isActive ? "rgba(0,200,117,0.1)" : "rgba(255,255,255,0.05)", color: c.isActive ? "var(--color-accent)" : "var(--color-muted)" }}>
-                {c.isActive ? "Active" : "Disabled"}
-              </span>
-            </div>
-            <div className="text-xs" style={{ color: "var(--color-muted)" }}>
-              Rs {parseFloat(c.rewardAmount).toLocaleString()} · Used {c.usedCount}/{c.maxUses}
-              {c.expiresAt && ` · Expires ${new Date(c.expiresAt).toLocaleDateString()}`}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => onToggle(c.id)} title={c.isActive ? "Disable" : "Enable"}
-              style={{ color: c.isActive ? "var(--color-accent)" : "var(--color-muted)" }}>
-              {c.isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
-            </button>
-            {confirmDel === c.id ? (
-              <>
-                <button onClick={() => onDelete(c.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "rgba(232,99,58,0.9)", color: "#fff" }}>Delete</button>
-                <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.07)" }}><X size={13} style={{ color: "rgba(245,242,234,0.6)" }} /></button>
-              </>
-            ) : (
-              <button onClick={() => setConfirmDel(c.id)} style={{ color: "var(--color-alert)" }}><Trash2 size={16} /></button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function SegmentsTable({ segments, isGold, confirmDel, setConfirmDel, onEdit, onDelete }: {
   segments: Segment[];
   isGold: boolean;
@@ -298,70 +248,6 @@ function SegmentsTable({ segments, isGold, confirmDel, setConfirmDel, onEdit, on
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function CodeModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ code: "", rewardAmount: "", maxUses: "1", expiresAt: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await api.post("/admin/spin/codes", {
-        code: form.code.trim().toUpperCase(),
-        rewardAmount: parseFloat(form.rewardAmount),
-        maxUses: parseInt(form.maxUses) || 1,
-        expiresAt: form.expiresAt || null,
-      });
-      onSaved();
-    } catch (err: unknown) {
-      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to create code.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,15,13,0.88)" }} onClick={onClose}>
-      <div className="w-full max-w-md p-6 rounded-sm" style={{ background: "#0f1c17", border: "1px solid rgba(255,255,255,0.1)" }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <h3 className="font-display text-xl" style={{ color: "var(--color-surface)" }}>New Redeem Code</h3>
-          <button onClick={onClose}><X size={18} style={{ color: "var(--color-muted)" }} /></button>
-        </div>
-        {error && <div className="text-sm mb-4 p-3 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>{error}</div>}
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Code *</span>
-            <input required value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
-              placeholder="e.g. WELCOME100" className="px-3 py-2.5 rounded-sm text-sm font-mono tracking-wider" style={INP} />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Reward Amount (PKR) *</span>
-            <input required type="number" min="1" step="1" value={form.rewardAmount} onChange={e => setForm({ ...form, rewardAmount: e.target.value })}
-              placeholder="e.g. 500" className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Max Uses</span>
-            <input type="number" min="1" value={form.maxUses} onChange={e => setForm({ ...form, maxUses: e.target.value })}
-              className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Expiry Date (optional)</span>
-            <input type="datetime-local" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })}
-              className="px-3 py-2.5 rounded-sm text-sm" style={INP} />
-          </label>
-          <button type="submit" disabled={loading}
-            className="mt-1 px-4 py-3 rounded-sm text-sm font-medium disabled:opacity-60"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
-            {loading ? "Creating…" : "Create Code"}
-          </button>
-        </form>
       </div>
     </div>
   );
