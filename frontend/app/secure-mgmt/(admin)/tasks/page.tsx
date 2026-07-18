@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "@/lib/admin-api";
 import { Task } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Plus, Trash2, X, Check, Pencil } from "lucide-react";
+import { Plus, Trash2, X, Check, Pencil, ImagePlus } from "lucide-react";
 
 export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -60,6 +60,9 @@ export default function AdminTasksPage() {
           ) : (
             tasks.map((t) => (
               <div key={t.id} className="ledger-row flex items-center justify-between gap-3 px-5 py-4">
+                {t.imageUrl ? (
+                  <img src={t.imageUrl} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" style={{ border: "1px solid rgba(255,255,255,0.1)" }} />
+                ) : null}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-sm font-medium" style={{ color: "var(--color-surface)" }}>{t.title}</span>
@@ -141,9 +144,26 @@ function TaskModal({ task, onClose, onSaved }: { task?: Task; onClose: () => voi
     instructions: task?.instructions ?? "",
     externalUrl: task?.externalUrl ?? "",
     rewardAmount: task ? String(parseFloat(task.rewardAmount)) : "",
+    imageUrl: task?.imageUrl ?? "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [error, setError] = useState("");
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  async function uploadImage(file: File) {
+    setImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("logo", file);
+      const r = await api.post("/admin/upload/logo", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((p) => ({ ...p, imageUrl: r.data.url }));
+    } catch {
+      setError("Image upload failed");
+    } finally {
+      setImageUploading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -162,6 +182,7 @@ function TaskModal({ task, onClose, onSaved }: { task?: Task; onClose: () => voi
         categoryName: "Social Media",
         source: "MANUAL",
         requiresProof: true,
+        imageUrl: form.imageUrl || undefined,
       };
       if (isEdit) {
         await api.patch(`/admin/tasks/${task!.id}`, payload);
@@ -223,6 +244,35 @@ function TaskModal({ task, onClose, onSaved }: { task?: Task; onClose: () => voi
             <input required type="number" min="1" step="0.01" value={form.rewardAmount} onChange={(e) => setForm({ ...form, rewardAmount: e.target.value })}
               placeholder="e.g. 50"
               className="px-3 py-2.5 rounded-sm text-sm" style={inp} />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Image (optional)</span>
+            <p className="text-xs -mt-1" style={{ color: "var(--color-muted)" }}>Users will see a Download button on the task to get this image.</p>
+            <div className="flex items-center gap-3">
+              {form.imageUrl ? (
+                <div className="relative w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ border: "1.5px solid rgba(255,255,255,0.12)" }}>
+                  <img src={form.imageUrl} alt="Task" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => setForm((p) => ({ ...p, imageUrl: "" }))}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.7)" }}>
+                    <X size={10} style={{ color: "#fff" }} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.15)" }}>
+                  <ImagePlus size={18} style={{ color: "rgba(245,242,234,0.3)" }} />
+                </div>
+              )}
+              <input ref={imageInputRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); }} />
+              <button type="button" onClick={() => imageInputRef.current?.click()} disabled={imageUploading}
+                className="px-3 py-2 rounded-sm text-xs font-medium disabled:opacity-50"
+                style={{ background: "rgba(255,255,255,0.07)", color: "rgba(245,242,234,0.8)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                {imageUploading ? "Uploading…" : form.imageUrl ? "Change image" : "Upload image"}
+              </button>
+            </div>
           </label>
 
           <button type="submit" disabled={submitting}

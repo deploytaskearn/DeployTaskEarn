@@ -155,6 +155,7 @@ const taskSchema = z.object({
   maxCompletions: z.coerce.number().int().positive().optional(),
   expiresAt: z.string().optional(),
   planTier: z.coerce.number().int().min(0).default(0),
+  imageUrl: z.string().optional(),
 });
 
 async function createTask(req, res) {
@@ -180,14 +181,14 @@ async function createTask(req, res) {
     const result = await pool.query(
       `INSERT INTO "Task"
         (id, title, description, instructions, "categoryId", source, "cpaNetworkName", "cpaOfferId",
-         "externalUrl", "rewardAmount", "requiresProof", "maxCompletions", "expiresAt", "planTier", status, "createdAt", "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ACTIVE', now(), now())
+         "externalUrl", "rewardAmount", "requiresProof", "maxCompletions", "expiresAt", "planTier", "imageUrl", status, "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'ACTIVE', now(), now())
        RETURNING *`,
       [
         data.title, data.description, data.instructions || null, categoryId,
         data.source, data.cpaNetworkName || null, data.cpaOfferId || null, data.externalUrl || null,
         data.rewardAmount, data.requiresProof, data.maxCompletions || null, data.expiresAt || null,
-        data.planTier,
+        data.planTier, data.imageUrl || null,
       ]
     );
     res.status(201).json(result.rows[0]);

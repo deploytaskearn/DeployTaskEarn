@@ -29,11 +29,13 @@ export interface Task {
   completedCount: number;
   maxCompletions?: number | null;
   alreadySubmitted?: boolean;
+  submissionStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
   userHasPlan?: boolean | null;
   planName?: string | null;
   taskPlanId?: string | null;
   isFreeTask?: boolean;
   plans?: { id: string; name: string }[];
+  imageUrl?: string | null;
   createdAt: string;
 }
 

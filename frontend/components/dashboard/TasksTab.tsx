@@ -3,15 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import api from "@/lib/api";
 import { Task } from "@/lib/types";
-import { CheckCircle2, ExternalLink, Trophy, Zap, Upload, X as XIcon, ImageIcon } from "lucide-react";
+import { CheckCircle2, ExternalLink, Trophy, Upload, X as XIcon, ImageIcon, Download, Clock } from "lucide-react";
 
 const CARD = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" };
-
-interface CompletionResult {
-  rewardAmount: number;
-  coinsEarned: number;
-  bonusSpinsEarned: number;
-}
 
 // ── Proof modal ──────────────────────────────────────────────────────────────
 
@@ -113,52 +107,30 @@ function ProofModal({
   );
 }
 
-// ── Countdown overlay ────────────────────────────────────────────────────────
-
-function CountdownOverlay({ seconds }: { seconds: number }) {
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}>
-      <div className="flex flex-col items-center gap-5">
-        <div
-          className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-display font-bold"
-          style={{
-            background: "rgba(0,200,117,0.12)",
-            border: "3px solid #00C875",
-            color: "#00C875",
-            boxShadow: "0 0 32px rgba(0,200,117,0.3)",
-          }}
-        >
-          {seconds}
-        </div>
-        <p className="text-base font-semibold" style={{ color: "rgba(245,242,234,0.8)" }}>
-          Verifying your proof…
-        </p>
-        <p className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
-          Reward will be added in {seconds} second{seconds !== 1 ? "s" : ""}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
-  const [done, setDone] = useState<Record<string, CompletionResult>>({});
 
   // Which task is waiting for proof
   const [proofTask, setProofTask] = useState<Task | null>(null);
-  // Countdown state
-  const [countdown, setCountdown] = useState<number | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get("/tasks").then((r) => setTasks(r.data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    api.get<Task[]>("/tasks")
+      .then((r) => {
+        setTasks((prev) => {
+          const wasPending = new Set(prev.filter((t) => t.submissionStatus === "PENDING").map((t) => t.id));
+          const justApproved = r.data.some((t) => wasPending.has(t.id) && t.submissionStatus === "APPROVED");
+          if (justApproved) onRewardEarned?.();
+          return r.data;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [onRewardEarned]);
 
   useEffect(() => {
     load();
@@ -170,37 +142,18 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     setProofTask(null);
     setSubmitting(s => ({ ...s, [task.id]: true }));
 
-    // Start 5-second countdown
-    setCountdown(5);
-    const tick = setInterval(() => {
-      setCountdown(prev => {
-        if (prev === null || prev <= 1) {
-          clearInterval(tick);
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // Build FormData (supports file + text)
     const form = new FormData();
     if (proofFile) form.append("proofFile", proofFile);
     if (proofText.trim()) form.append("proofText", proofText.trim());
 
     try {
-      // Wait 5 seconds then submit (countdown runs in parallel)
-      await new Promise(res => setTimeout(res, 5000));
-      const r = await api.post<CompletionResult>(`/tasks/${task.id}/submit`, form, {
+      await api.post(`/tasks/${task.id}/submit`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setDone(d => ({ ...d, [task.id]: r.data }));
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true } : t));
-      onRewardEarned?.();
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true, submissionStatus: "PENDING" } : t));
     } catch {
       load();
     } finally {
-      clearInterval(tick);
-      setCountdown(null);
       setSubmitting(s => ({ ...s, [task.id]: false }));
     }
   }
@@ -240,9 +193,6 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
         />
       )}
 
-      {/* Countdown overlay */}
-      {countdown !== null && <CountdownOverlay seconds={countdown} />}
-
       {freeTasks.length > 0 && (
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -255,7 +205,6 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {freeTasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
-                result={done[t.id] ?? null}
                 onComplete={() => setProofTask(t)}
               />
             ))}
@@ -277,7 +226,6 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {group.tasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
-                result={done[t.id] ?? null}
                 onComplete={() => setProofTask(t)}
               />
             ))}
@@ -291,20 +239,20 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
 // ── Task card ─────────────────────────────────────────────────────────────────
 
 function TaskCard({
-  task, submitting, result, onComplete,
+  task, submitting, onComplete,
 }: {
   task: Task;
   submitting: boolean;
-  result: CompletionResult | null;
   onComplete: () => void;
 }) {
-  const isDone = task.alreadySubmitted || !!result;
+  const status = task.submissionStatus;
+  const isDone = task.alreadySubmitted;
 
   return (
     <div className="p-5 rounded-xl flex flex-col gap-3" style={{
       ...CARD,
-      border: result ? "1px solid rgba(0,200,117,0.3)" : CARD.border,
-      background: result ? "rgba(0,200,117,0.04)" : CARD.background,
+      border: status === "APPROVED" ? "1px solid rgba(0,200,117,0.3)" : status === "REJECTED" ? "1px solid rgba(232,99,58,0.3)" : CARD.border,
+      background: status === "APPROVED" ? "rgba(0,200,117,0.04)" : CARD.background,
     }}>
       {/* Title + reward */}
       <div className="flex items-start justify-between gap-3">
@@ -325,6 +273,14 @@ function TaskCard({
 
       <p className="text-sm leading-relaxed flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
 
+      {task.imageUrl && (
+        <a href={task.imageUrl} download target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
+          style={{ background: "rgba(100,160,255,0.1)", color: "#7EB8FF", border: "1px solid rgba(100,160,255,0.2)" }}>
+          <Download size={14} /> Download Image
+        </a>
+      )}
+
       {task.externalUrl && !isDone && (
         <a href={task.externalUrl.startsWith("http") ? task.externalUrl : `https://${task.externalUrl}`}
           target="_blank" rel="noopener noreferrer"
@@ -334,22 +290,21 @@ function TaskCard({
         </a>
       )}
 
-      {/* CTA / result */}
-      {result ? (
+      {/* CTA / status */}
+      {status === "APPROVED" ? (
         <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(0,200,117,0.1)", border: "1px solid rgba(0,200,117,0.25)" }}>
-          <div className="flex items-center justify-center gap-2 mb-1">
+          <div className="flex items-center justify-center gap-2">
             <CheckCircle2 size={16} color="#00C875" />
-            <span className="text-sm font-bold" style={{ color: "#00C875" }}>Task Completed!</span>
-          </div>
-          <div className="flex items-center justify-center gap-4 text-xs" style={{ color: "rgba(245,242,234,0.7)" }}>
-            <span>💰 Rs{result.rewardAmount.toFixed(0)} added</span>
-            <span>🪙 {result.coinsEarned} coins</span>
-            {result.bonusSpinsEarned > 0 && <span>🎡 +{result.bonusSpinsEarned} spins!</span>}
+            <span className="text-sm font-bold" style={{ color: "#00C875" }}>Approved — Rs{parseFloat(task.rewardAmount).toFixed(0)} added</span>
           </div>
         </div>
-      ) : isDone ? (
-        <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg" style={{ background: "rgba(0,200,117,0.06)", color: "#00C875" }}>
-          <CheckCircle2 size={15} /> Already completed
+      ) : status === "REJECTED" ? (
+        <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(232,99,58,0.1)", border: "1px solid rgba(232,99,58,0.25)" }}>
+          <span className="text-sm font-bold" style={{ color: "#E8633A" }}>Submission rejected</span>
+        </div>
+      ) : status === "PENDING" ? (
+        <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg" style={{ background: "rgba(244,200,66,0.1)", color: "#F4C842" }}>
+          <Clock size={15} /> Pending admin review
         </div>
       ) : (
         <button
@@ -359,7 +314,7 @@ function TaskCard({
           style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
         >
           {submitting ? (
-            <><span className="animate-spin inline-block">⟳</span> Processing…</>
+            <><span className="animate-spin inline-block">⟳</span> Submitting…</>
           ) : (
             <><Upload size={15} /> Submit Proof</>
           )}

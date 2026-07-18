@@ -33,6 +33,11 @@ async function listTasks(req, res) {
         pi."planName",
         pi."taskPlanId",
         (pi."taskId" IS NULL) as "isFreeTask",
+        (
+          SELECT ts.status FROM "TaskSubmission" ts
+          WHERE ts."taskId" = t.id AND ts."userId" = $1
+          LIMIT 1
+        ) as "submissionStatus",
         EXISTS(
           SELECT 1 FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
@@ -76,10 +81,6 @@ async function getTask(req, res) {
   }
 }
 
-const COINS_PER_TASK = 10;
-const COIN_MILESTONE = 500;
-const SPINS_PER_MILESTONE = 3;
-
 async function submitTask(req, res) {
   try {
     const taskId = req.params.id;
@@ -108,41 +109,20 @@ async function submitTask(req, res) {
       return res.status(400).json({ error: 'Proof is required for this task (screenshot or description).' });
     }
 
-    const rewardAmount = parseFloat(task.rewardAmount);
-
-    // Auto-approve and credit wallet immediately
+    // Hold for admin review — wallet credit, coins, and bonus spins are all
+    // awarded by reviewSubmission() once an admin approves this submission.
     const result = await pool.query(
       `INSERT INTO "TaskSubmission"
-         (id, "taskId", "userId", status, "rewardPaid", "autoApproved", "proofText", "proofFileUrl", "createdAt", "reviewedAt")
-       VALUES (gen_random_uuid(), $1, $2, 'APPROVED', $3, true, $4, $5, now(), now())
+         (id, "taskId", "userId", status, "proofText", "proofFileUrl", "createdAt")
+       VALUES (gen_random_uuid(), $1, $2, 'PENDING', $3, $4, now())
        RETURNING *`,
-      [taskId, userId, rewardAmount, proofText, proofFileUrl]
+      [taskId, userId, proofText, proofFileUrl]
     );
-
-    await walletService.credit(userId, rewardAmount, 'TASK_EARNING', result.rows[0].id, `Task completed: ${task.title}`);
-
-    // Award coins (10 per task, every 500 = 3 bonus spins)
-    const coinRow = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [userId]);
-    const oldCoins = coinRow.rows.length ? coinRow.rows[0].coins : 0;
-    const newCoins = oldCoins + COINS_PER_TASK;
-    await pool.query(
-      `INSERT INTO "UserCoin" ("userId", coins) VALUES ($1, $2)
-       ON CONFLICT ("userId") DO UPDATE SET coins=$2, "updatedAt"=now()`,
-      [userId, newCoins]
-    );
-    const milestonesEarned = Math.floor(newCoins / COIN_MILESTONE) - Math.floor(oldCoins / COIN_MILESTONE);
-    for (let i = 0; i < milestonesEarned * SPINS_PER_MILESTONE; i++) {
-      await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [userId]);
-    }
-
-    await pool.query('UPDATE "Task" SET "completedCount" = "completedCount" + 1 WHERE id = $1', [taskId]);
 
     res.status(201).json({
       submission: result.rows[0],
-      rewardAmount,
-      coinsEarned: COINS_PER_TASK,
-      totalCoins: newCoins,
-      bonusSpinsEarned: milestonesEarned * SPINS_PER_MILESTONE,
+      pending: true,
+      message: 'Submitted! Your proof is under review — the reward will be added once an admin approves it.',
     });
   } catch (err) {
     console.error('submitTask error:', err);

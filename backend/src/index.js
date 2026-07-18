@@ -81,6 +81,7 @@ async function runMigrations() {
     `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'REFERRAL_PLAN_BONUS'`,
     `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'PLAN_PURCHASE'`,
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "planTier" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
     `CREATE TABLE IF NOT EXISTS "Plan" (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
