@@ -64,7 +64,10 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
       }
       const segAngle = 360 / totalSegments;
       const toWinner = (360 - segAngle / 2) - winnerIndex * segAngle;
-      const finalRot = prevFreeRot.current + 1800 + toWinner;
+      // Base off the last full rotation (not the raw accumulated value) so each
+      // spin's landing angle depends only on this spin's winner, not prior spins.
+      const base = Math.floor(prevFreeRot.current / 360) * 360;
+      const finalRot = base + 1800 + toWinner;
       prevFreeRot.current = finalRot;
       setFreeRotation(finalRot);
       setTimeout(() => {

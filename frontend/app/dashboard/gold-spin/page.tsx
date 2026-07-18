@@ -54,7 +54,10 @@ export default function GoldSpinPage() {
       setSpinning(true);
       const segAngle = 360 / totalSegments;
       const toWinner = (360 - segAngle / 2) - winnerIndex * segAngle;
-      const finalRot = prevRot.current + 1800 + toWinner;
+      // Base off the last full rotation (not the raw accumulated value) so each
+      // spin's landing angle depends only on this spin's winner, not prior spins.
+      const base = Math.floor(prevRot.current / 360) * 360;
+      const finalRot = base + 1800 + toWinner;
       prevRot.current = finalRot;
       setRotation(finalRot);
       setTimeout(() => {
