@@ -7,6 +7,25 @@ import { CheckCircle2, ExternalLink, Trophy, Upload, X as XIcon, ImageIcon, Down
 
 const CARD = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" };
 
+// Cross-origin <a download> is ignored by most browsers (they just navigate
+// instead), so fetch the image as a blob and trigger the download ourselves.
+async function downloadImage(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
+
 // ── Proof modal ──────────────────────────────────────────────────────────────
 
 function ProofModal({
@@ -274,11 +293,12 @@ function TaskCard({
       <p className="text-sm leading-relaxed flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
 
       {task.imageUrl && (
-        <a href={task.imageUrl} download target="_blank" rel="noopener noreferrer"
+        <button
+          onClick={() => downloadImage(task.imageUrl!, `${task.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.jpg`)}
           className="inline-flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg"
           style={{ background: "rgba(100,160,255,0.1)", color: "#7EB8FF", border: "1px solid rgba(100,160,255,0.2)" }}>
           <Download size={14} /> Download Image
-        </a>
+        </button>
       )}
 
       {task.externalUrl && !isDone && (
