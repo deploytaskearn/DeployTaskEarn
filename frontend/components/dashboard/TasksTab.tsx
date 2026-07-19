@@ -286,10 +286,6 @@ function TaskCard({
         </div>
       </div>
 
-      {task.categoryName && (
-        <span className="text-xs uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.4)" }}>{task.categoryName}</span>
-      )}
-
       <p className="text-sm leading-relaxed flex-1" style={{ color: "rgba(245,242,234,0.6)" }}>{task.description}</p>
 
       {task.imageUrl && (
