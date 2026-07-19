@@ -17,7 +17,7 @@ export default function AdminHelpVideosPage() {
 
   function load() {
     setLoading(true);
-    api.get("/admin/help-videos")
+    api.get("/cms/admin/help-videos")
       .then((r) => setVideos(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -31,7 +31,7 @@ export default function AdminHelpVideosPage() {
   async function deleteVideo(id: string) {
     setDeleting(true);
     try {
-      await api.delete(`/admin/help-videos/${id}`);
+      await api.delete(`/cms/admin/help-videos/${id}`);
       setConfirmDeleteId(null);
       load();
     } finally {
@@ -40,7 +40,7 @@ export default function AdminHelpVideosPage() {
   }
 
   async function toggleActive(v: HelpVideo) {
-    await api.patch(`/admin/help-videos/${v.id}`, { isActive: !v.isActive });
+    await api.patch(`/cms/admin/help-videos/${v.id}`, { isActive: !v.isActive });
     load();
   }
 
@@ -154,9 +154,9 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
         sortOrder: parseInt(form.sortOrder) || 0,
       };
       if (isEdit) {
-        await api.patch(`/admin/help-videos/${video!.id}`, payload);
+        await api.patch(`/cms/admin/help-videos/${video!.id}`, payload);
       } else {
-        await api.post("/admin/help-videos", payload);
+        await api.post("/cms/admin/help-videos", payload);
       }
       onSaved();
     } catch (err: unknown) {
