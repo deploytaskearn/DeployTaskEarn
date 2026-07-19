@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const crypto = require('crypto');
 const pool = require('../db/pool');
 const {
   hashPassword,
@@ -6,6 +7,14 @@ const {
   signToken,
   generateReferralCode,
 } = require('../utils/auth');
+const { sendEmail } = require('../utils/email');
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://taskearn.tech';
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
@@ -222,4 +231,95 @@ async function adminMe(req, res) {
   }
 }
 
-module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile };
+const forgotPasswordSchema = z.object({ email: z.string().email() });
+
+async function forgotPassword(req, res) {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+
+    // Always respond the same way whether or not the email exists, so this
+    // endpoint can't be used to enumerate registered accounts.
+    const GENERIC_RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
+
+    const userResult = await pool.query('SELECT id, name FROM "User" WHERE LOWER(email) = LOWER($1)', [email]);
+    if (userResult.rows.length === 0) {
+      return res.json(GENERIC_RESPONSE);
+    }
+    const user = userResult.rows[0];
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+    // Invalidate any previous unused reset tokens for this user first.
+    await pool.query('DELETE FROM "PasswordResetToken" WHERE "userId" = $1 AND "usedAt" IS NULL', [user.id]);
+    await pool.query(
+      `INSERT INTO "PasswordResetToken" (id, "userId", "tokenHash", "expiresAt", "createdAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, now())`,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'Reset your TaskEarn password',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#0E1C15">Reset your password</h2>
+            <p>Hi ${user.name || ''},</p>
+            <p>We received a request to reset your TaskEarn password. Click the button below to choose a new one. This link expires in 1 hour.</p>
+            <p style="margin:28px 0">
+              <a href="${resetLink}" style="background:#00C875;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset Password</a>
+            </p>
+            <p style="color:#666;font-size:13px">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+            <p style="color:#999;font-size:12px">Or paste this link in your browser: ${resetLink}</p>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.error('forgotPassword: failed to send email:', emailErr.message);
+      // Still respond generically — don't leak whether the send succeeded.
+    }
+
+    res.json(GENERIC_RESPONSE);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid email is required.' });
+    console.error('forgotPassword error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(6).max(100),
+});
+
+async function resetPassword(req, res) {
+  try {
+    const { token, password } = resetPasswordSchema.parse(req.body);
+    const tokenHash = hashToken(token);
+
+    const tokenResult = await pool.query(
+      `SELECT * FROM "PasswordResetToken"
+       WHERE "tokenHash" = $1 AND "usedAt" IS NULL AND "expiresAt" > now()`,
+      [tokenHash]
+    );
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
+    }
+    const resetToken = tokenResult.rows[0];
+
+    const passwordHash = await hashPassword(password);
+    await pool.query('UPDATE "User" SET "passwordHash" = $1, "updatedAt" = now() WHERE id = $2', [passwordHash, resetToken.userId]);
+    await pool.query('UPDATE "PasswordResetToken" SET "usedAt" = now() WHERE id = $1', [resetToken.id]);
+
+    res.json({ message: 'Password updated. You can now log in with your new password.' });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid token and password (min 6 characters) are required.' });
+    console.error('resetPassword error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile, forgotPassword, resetPassword };

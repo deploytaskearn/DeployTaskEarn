@@ -83,6 +83,10 @@ export default function LoginPage() {
               />
             </label>
 
+            <Link href="/forgot-password" className="text-xs -mt-2 self-end" style={{ color: "var(--color-accent)" }}>
+              Forgot password?
+            </Link>
+
             <button
               type="submit"
               disabled={loading}

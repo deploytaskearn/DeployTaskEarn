@@ -306,6 +306,15 @@ async function runMigrations() {
            ON CONFLICT (key) DO UPDATE SET value='1', "updatedAt"=now();
        END IF;
      END $$`,
+    `CREATE TABLE IF NOT EXISTS "PasswordResetToken" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      "tokenHash" TEXT NOT NULL UNIQUE,
+      "expiresAt" TIMESTAMP NOT NULL,
+      "usedAt" TIMESTAMP,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId")`,
     `CREATE TABLE IF NOT EXISTS "HelpVideo" (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       title TEXT NOT NULL,
