@@ -4,14 +4,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, Smartphone, Wallet, ClipboardCheck, Star, Users, Zap, Shield } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
-import { Plan } from "@/lib/types";
+import { HelpVideoCard } from "@/components/HelpVideoCard";
+import { Plan, HelpVideo } from "@/lib/types";
 import api from "@/lib/api";
 
 export default function HomePage() {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [videos, setVideos] = useState<HelpVideo[]>([]);
 
   useEffect(() => {
     api.get("/plans").then((r) => setPlans(r.data.slice(0, 3))).catch(() => {});
+    api.get<HelpVideo[]>("/cms/help-videos").then((r) => setVideos(r.data ?? [])).catch(() => {});
   }, []);
 
   return (
@@ -97,6 +100,25 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── Video tutorials ── */}
+      {videos.length > 0 && (
+        <section className="py-24" style={{ background: "var(--color-bg)" }}>
+          <div className="max-w-6xl mx-auto px-5">
+            <div className="text-center mb-16">
+              <div className="text-xs tracking-widest uppercase mb-3 font-medium" style={{ color: "var(--color-accent)" }}>Video Tutorials</div>
+              <h2 className="font-display text-3xl md:text-5xl" style={{ color: "var(--color-surface)" }}>
+                See exactly how it works.
+              </h2>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {videos.slice(0, 6).map((v) => (
+                <HelpVideoCard key={v.id} video={v} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Plans preview ── */}
       {plans.length > 0 && (

@@ -9,7 +9,7 @@ router.get('/blog/:slug', cmsController.getPostBySlug);
 router.post('/contact', cmsController.submitContactMessage);
 router.get('/settings', cmsController.getSettings);
 router.get('/categories', cmsController.listCategories);
-router.get('/help-videos', requireAuth, cmsController.listHelpVideos);
+router.get('/help-videos', cmsController.listHelpVideos);
 
 // Admin
 router.get('/admin/blog', requireAuth, requireAdmin, cmsController.adminListPosts);

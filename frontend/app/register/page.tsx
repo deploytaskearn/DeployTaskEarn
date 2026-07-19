@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
 import { useAuth } from "@/lib/auth-context";
+import { useSiteSettings } from "@/lib/site-settings-context";
 import { AlertCircle } from "lucide-react";
 
 function RegisterForm() {
   const { register } = useAuth();
+  const { fbr_certificate_url } = useSiteSettings();
   const router = useRouter();
   const searchParams = useSearchParams();
   const refFromUrl = searchParams.get("ref") || "";
@@ -95,6 +97,17 @@ function RegisterForm() {
             Log in
           </Link>
         </p>
+
+        {fbr_certificate_url && (
+          <a href={fbr_certificate_url} target="_blank" rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 mt-8 pt-6"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={fbr_certificate_url} alt="FBR registration certificate"
+              className="rounded-lg object-cover" style={{ width: 56, height: 56, border: "1px solid rgba(255,255,255,0.1)" }} />
+            <span className="text-xs font-medium" style={{ color: "rgba(245,242,234,0.5)" }}>FBR Registered</span>
+          </a>
+        )}
       </div>
     </section>
   );
