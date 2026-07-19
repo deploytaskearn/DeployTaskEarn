@@ -26,7 +26,25 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet({ crossOriginResourcePolicy: false })); // allow serving uploaded images cross-origin
-app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
+
+// Allow the Railway-provided frontend URL plus any custom domains the site
+// is served from (e.g. after connecting a custom domain in Railway).
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://taskearn.tech',
+  'https://www.taskearn.tech',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
