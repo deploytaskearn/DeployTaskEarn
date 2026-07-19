@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { TrendingUp, Banknote, Package } from "lucide-react";
 
 const CITIES = ["Lahore", "Karachi", "Islamabad", "Faisalabad", "Rawalpindi", "Peshawar", "Multan", "Hyderabad", "Quetta", "Sialkot"];
@@ -61,9 +62,14 @@ function useSlot(firstDelay: number, interval: () => number) {
 }
 
 export function ActivityFeed() {
+  const pathname = usePathname();
   const slot1 = useSlot(5000, () => randNum(8000, 14000));
 
-  if (!slot1.visible || !slot1.activity) return null;
+  // Only show this "recent activity" trust widget on the public marketing
+  // pages — it was overlapping the sidebar nav on /secure-mgmt (admin) and
+  // has no place being shown to already-registered users on /dashboard.
+  const isAppRoute = pathname?.startsWith("/secure-mgmt") || pathname?.startsWith("/dashboard");
+  if (isAppRoute || !slot1.visible || !slot1.activity) return null;
 
   return (
     <div className="fixed bottom-20 left-4 z-[9998]">
