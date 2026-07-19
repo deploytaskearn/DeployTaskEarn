@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
 import { useAuth } from "@/lib/auth-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ShieldCheck } from "lucide-react";
 
 function RegisterForm() {
   const { register } = useAuth();
@@ -100,12 +100,18 @@ function RegisterForm() {
 
         {fbr_certificate_url && (
           <a href={fbr_certificate_url} target="_blank" rel="noopener noreferrer"
-            className="flex flex-col items-center gap-2 mt-8 pt-6"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            className="flex items-center gap-3 mt-8 p-3 rounded-2xl transition-colors hover:opacity-90"
+            style={{ background: "rgba(0,200,117,0.05)", border: "1px solid rgba(0,200,117,0.15)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={fbr_certificate_url} alt="FBR registration certificate"
-              className="rounded-lg object-cover" style={{ width: 56, height: 56, border: "1px solid rgba(255,255,255,0.1)" }} />
-            <span className="text-xs font-medium" style={{ color: "rgba(245,242,234,0.5)" }}>FBR Registered</span>
+              className="rounded-xl object-cover shrink-0" style={{ width: 44, height: 44, border: "1px solid rgba(255,255,255,0.12)" }} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck size={13} style={{ color: "var(--color-accent)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--color-surface)" }}>FBR Registered</span>
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Tap to view certificate</div>
+            </div>
           </a>
         )}
       </div>
