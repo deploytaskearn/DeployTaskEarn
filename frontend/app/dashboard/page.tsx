@@ -17,7 +17,7 @@ type HistoryFilter = "pending" | "withdraw" | "deposit";
 
 export default function DashboardPage() {
   const { user, loading } = useRequireAuth();
-  const { logout } = useAuth();
+  const { logout, refreshUser } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("main");
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
@@ -71,6 +71,10 @@ export default function DashboardPage() {
 
   function refreshBalance() {
     api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
+    // Also sync the shared auth context so the balance stays fresh across
+    // page navigations (e.g. coming back from Gold Spin / Premium Box),
+    // which remount this page and would otherwise show a stale cached value.
+    refreshUser();
   }
 
   function openHistory(filter: HistoryFilter) {

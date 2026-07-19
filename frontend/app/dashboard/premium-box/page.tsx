@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import api from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface Prize { id: string; label: string; rewardAmount: string; }
 interface MysteryInfo {
@@ -69,6 +70,7 @@ function BoxSVG({ phase }: { phase: BoxPhase }) {
 
 export default function PremiumBoxPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [info, setInfo] = useState<MysteryInfo | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [phase, setPhase] = useState<BoxPhase>("idle");
@@ -107,6 +109,9 @@ export default function PremiumBoxPage() {
         setPhase("revealed");
         setWalletBalance(res.data.walletBalance ?? 0);
         setBuying(false);
+        // Sync the shared auth context too, so the dashboard's wallet card is
+        // fresh the moment the user navigates back — no manual refresh needed.
+        refreshUser();
       }, 1500);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed. Please try again.";

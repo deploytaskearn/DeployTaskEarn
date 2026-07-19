@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import api from "@/lib/api";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { useAuth } from "@/lib/auth-context";
 import { WheelSVG } from "@/components/dashboard/WheelSVG";
 import { SpinSegment, SpinInfo, GoldSpinResult } from "@/lib/types";
 
 export default function GoldSpinPage() {
   const { user, loading } = useRequireAuth();
+  const { refreshUser } = useAuth();
   const router = useRouter();
 
   const [goldSegments, setGoldSegments] = useState<SpinSegment[]>([]);
@@ -65,6 +67,9 @@ export default function GoldSpinPage() {
         setSpinning(false);
         setWalletBalance(res.data.walletBalance ?? 0);
         setBuying(false);
+        // Sync the shared auth context too, so the dashboard's wallet card is
+        // fresh the moment the user navigates back — no manual refresh needed.
+        refreshUser();
       }, 5200);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Spin failed.";
