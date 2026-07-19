@@ -49,6 +49,17 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
 
+// Never let a proxy/CDN/browser cache API responses. This is a stateful,
+// authenticated app where every request's data depends on who's asking
+// (Authorization header) — without this, a cache that keys on URL alone
+// (ignoring the auth header) can serve one user's /api/auth/me or
+// /api/spin/info response to a completely different user.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
+
 // Basic rate limiting on auth endpoints to slow down brute force / spam
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
 app.use('/api/auth', authLimiter);
