@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import { useAuth } from "@/lib/auth-context";
 import { WheelSVG } from "@/components/dashboard/WheelSVG";
-import { SpinSegment, SpinInfo, GoldSpinResult } from "@/lib/types";
+import { SpinSegment, SpinInfo, GoldSpinResult, BuyGoldSpinResult } from "@/lib/types";
 
 export default function GoldSpinPage() {
   const { user, loading } = useRequireAuth();
@@ -17,6 +17,7 @@ export default function GoldSpinPage() {
   const [goldSegments, setGoldSegments] = useState<SpinSegment[]>([]);
   const [goldSpinPrice, setGoldSpinPrice] = useState(500);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [goldCredits, setGoldCredits] = useState(0);
   const [fetchError, setFetchError] = useState("");
 
   const [spinning, setSpinning] = useState(false);
@@ -33,6 +34,7 @@ export default function GoldSpinPage() {
         setGoldSegments(r.data.goldSegments ?? []);
         setGoldSpinPrice(r.data.goldSpinPrice ?? 500);
         setWalletBalance(r.data.walletBalance ?? 0);
+        setGoldCredits(r.data.goldCredits ?? 0);
       })
       .catch(() => setFetchError("Failed to load spin data."));
   }, [user]);
@@ -40,7 +42,8 @@ export default function GoldSpinPage() {
   const canAfford = walletBalance >= goldSpinPrice;
   const need = Math.max(0, goldSpinPrice - walletBalance);
 
-  async function handleBuyAndSpin() {
+  // Step 1: purchase a credit only — does NOT spin the wheel.
+  async function handleBuy() {
     if (buying || spinning) return;
     if (!canAfford) {
       setError(`Rs ${need.toFixed(0)} more needed. Deposit to your wallet first.`);
@@ -48,9 +51,26 @@ export default function GoldSpinPage() {
     }
     setBuying(true);
     setError("");
+    try {
+      const res = await api.post<BuyGoldSpinResult>("/spin/buy-gold-spin");
+      setWalletBalance(res.data.walletBalance ?? 0);
+      setGoldCredits(res.data.goldCredits ?? 0);
+      refreshUser();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Purchase failed.";
+      setError(msg);
+    } finally {
+      setBuying(false);
+    }
+  }
+
+  // Step 2: spins the wheel using a banked credit (from a purchase or a bonus win).
+  async function handleSpinGold() {
+    if (spinning || goldCredits <= 0) return;
+    setError("");
     setResult(null);
     try {
-      const res = await api.post<GoldSpinResult>("/spin/buy-gold-spin");
+      const res = await api.post<GoldSpinResult>("/spin/gold-spin");
       const { winnerIndex, totalSegments, segments } = res.data;
       if (segments?.length) setGoldSegments(segments);
       setSpinning(true);
@@ -66,7 +86,7 @@ export default function GoldSpinPage() {
         setResult(res.data);
         setSpinning(false);
         setWalletBalance(res.data.walletBalance ?? 0);
-        setBuying(false);
+        setGoldCredits(res.data.goldCredits ?? 0);
         // Sync the shared auth context too, so the dashboard's wallet card is
         // fresh the moment the user navigates back — no manual refresh needed.
         refreshUser();
@@ -74,7 +94,6 @@ export default function GoldSpinPage() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Spin failed.";
       setError(msg);
-      setBuying(false);
       setSpinning(false);
     }
   }
@@ -147,15 +166,24 @@ export default function GoldSpinPage() {
               <div style={{ textAlign: "center", color: "rgba(255,215,0,0.4)", fontSize: 13 }}>Wheel segments<br/>not configured yet</div>
             </div>
           )}
+          {goldCredits > 0 && !spinning && (
+            <button onClick={handleSpinGold} aria-label="Spin" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 82, height: 82, borderRadius: "50%", background: "transparent", border: "none", cursor: "pointer", zIndex: 5 }} />
+          )}
         </div>
 
-        {/* Wallet balance */}
+        {/* Wallet balance + credits */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 99, background: "rgba(255,215,0,0.07)", border: "1px solid rgba(255,215,0,0.2)" }}>
           <span style={{ fontSize: 12, color: "rgba(255,215,0,0.5)" }}>Wallet balance:</span>
           <span style={{ fontSize: 18, fontWeight: 900, color: canAfford ? "#ffd700" : "#E8633A", fontFamily: "monospace" }}>
             Rs {walletBalance.toLocaleString()}
           </span>
         </div>
+
+        {goldCredits > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: "#a0b8ff" }}>
+            🎡 {goldCredits} gold spin{goldCredits > 1 ? "s" : ""} ready — tap the wheel to spin!
+          </div>
+        )}
 
         {/* Error */}
         {(error || fetchError) && (
@@ -180,6 +208,7 @@ export default function GoldSpinPage() {
               <>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🎡</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "#a0b8ff" }}>+1 Bonus Spin!</div>
+                <div style={{ fontSize: 12, color: "rgba(160,184,255,0.7)", marginTop: 6 }}>1 free spin + 1 free gold spin added</div>
               </>
             ) : (
               <>
@@ -193,10 +222,29 @@ export default function GoldSpinPage() {
 
         {/* CTA */}
         <div style={{ width: "calc(100% - 40px)", marginTop: 16 }}>
-          {!spinning ? (
+          {spinning ? (
+            <div style={{ width: "100%", padding: "18px 0", borderRadius: 18, background: "rgba(255,215,0,0.07)", border: "1px solid rgba(255,215,0,0.2)", textAlign: "center", fontSize: 16, fontWeight: 800, color: "#ffd700", letterSpacing: 1 }}>
+              ✨ Spinning…
+            </div>
+          ) : goldCredits > 0 ? (
+            <button
+              onClick={handleSpinGold}
+              disabled={displaySegs.length === 0}
+              style={{
+                width: "100%", padding: "18px 0", borderRadius: 18,
+                background: "linear-gradient(90deg,#7a5500 0%,#ffd700 50%,#7a5500 100%)",
+                border: "none", cursor: "pointer",
+                fontSize: 17, fontWeight: 900, color: "#000",
+                boxShadow: "0 6px 32px rgba(255,215,0,0.35)",
+                letterSpacing: 0.5,
+              }}
+            >
+              👑 Spin Now
+            </button>
+          ) : (
             <>
               <button
-                onClick={handleBuyAndSpin}
+                onClick={handleBuy}
                 disabled={!canAfford || buying || displaySegs.length === 0}
                 style={{
                   width: "100%", padding: "18px 0", borderRadius: 18,
@@ -210,7 +258,7 @@ export default function GoldSpinPage() {
                   letterSpacing: 0.5,
                 }}
               >
-                {result ? `👑 Spin Again (Rs ${goldSpinPrice.toLocaleString()})` : `👑 Buy & Spin — Rs ${goldSpinPrice.toLocaleString()}`}
+                {buying ? "Purchasing…" : result ? `👑 Buy Another — Rs ${goldSpinPrice.toLocaleString()}` : `👑 Buy Gold Spin — Rs ${goldSpinPrice.toLocaleString()}`}
               </button>
               {!canAfford && (
                 <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,215,0,0.4)", textAlign: "center" }}>
@@ -218,10 +266,6 @@ export default function GoldSpinPage() {
                 </div>
               )}
             </>
-          ) : (
-            <div style={{ width: "100%", padding: "18px 0", borderRadius: 18, background: "rgba(255,215,0,0.07)", border: "1px solid rgba(255,215,0,0.2)", textAlign: "center", fontSize: 16, fontWeight: 800, color: "#ffd700", letterSpacing: 1 }}>
-              ✨ Spinning…
-            </div>
           )}
         </div>
 

@@ -165,8 +165,10 @@ export interface SpinInfo {
   canSpin: boolean;
   spinsToday: number;
   secondsUntilSpin: number;
+  hasBonusSpin?: boolean;
   goldSegments: SpinSegment[];
   goldSpinPrice: number;
+  goldCredits?: number;
   walletBalance: number;
   freeSpinTestMode?: boolean;
 }
@@ -177,6 +179,8 @@ export interface SpinResult {
   totalSegments: number;
   segments: SpinSegment[];
   secondsUntilSpin: number;
+  canSpinAgain?: boolean;
+  goldCredits?: number;
 }
 
 export interface GoldSpinResult {
@@ -185,6 +189,12 @@ export interface GoldSpinResult {
   totalSegments: number;
   segments: SpinSegment[];
   walletBalance: number;
+  goldCredits?: number;
+}
+
+export interface BuyGoldSpinResult {
+  walletBalance: number;
+  goldCredits: number;
 }
 
 export interface RedeemCode {

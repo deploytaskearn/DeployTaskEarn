@@ -203,6 +203,14 @@ async function runMigrations() {
       "usedAt" TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS "UserBonusSpin_userId_idx" ON "UserBonusSpin"("userId")`,
+    `CREATE TABLE IF NOT EXISTS "UserGoldSpinCredit" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id),
+      source TEXT NOT NULL DEFAULT 'PURCHASE',
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+      "usedAt" TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS "UserGoldSpinCredit_userId_idx" ON "UserGoldSpinCredit"("userId")`,
     `ALTER TYPE "LedgerType" ADD VALUE IF NOT EXISTS 'MYSTERY_BOX'`,
     `CREATE TABLE IF NOT EXISTS "MysteryBoxPrize" (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

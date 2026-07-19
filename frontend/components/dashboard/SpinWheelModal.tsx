@@ -73,8 +73,11 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
       setTimeout(() => {
         setFreeResult(res.data);
         setFreeSpinning(false);
-        setCanSpin(info?.freeSpinTestMode ? true : false);
+        setCanSpin(!!res.data.canSpinAgain);
         setSecondsUntilSpin(res.data.secondsUntilSpin ?? 0);
+        if (res.data.goldCredits !== undefined) {
+          setInfo((prev) => (prev ? { ...prev, goldCredits: res.data.goldCredits } : prev));
+        }
         if (parseFloat(res.data.winner.rewardAmount) > 0) onWin();
       }, 5200);
     } catch (err: unknown) {
@@ -159,6 +162,7 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
                 <>
                   <div style={{ fontSize: 32, marginBottom: 6 }}>🎡</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#a0b8ff" }}>+1 Bonus Spin!</div>
+                  <div style={{ fontSize: 12, color: "rgba(160,184,255,0.7)", marginTop: 4 }}>1 free spin + 1 free gold spin added</div>
                 </>
               ) : (
                 <>
@@ -198,9 +202,15 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
               <div style={{ fontSize: 11, color: "rgba(255,215,0,0.55)", marginTop: 2 }}>
                 Rs {goldSpinPrice.toLocaleString()} · Prizes up to Rs 10,000
               </div>
-              <div style={{ fontSize: 10, color: "rgba(255,215,0,0.4)", marginTop: 1 }}>
-                Wallet: Rs {walletBalance.toLocaleString()}
-              </div>
+              {(info?.goldCredits ?? 0) > 0 ? (
+                <div style={{ fontSize: 10, color: "#a0b8ff", marginTop: 1, fontWeight: 700 }}>
+                  🎡 {info?.goldCredits} free spin{(info?.goldCredits ?? 0) > 1 ? "s" : ""} ready!
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: "rgba(255,215,0,0.4)", marginTop: 1 }}>
+                  Wallet: Rs {walletBalance.toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
           <div style={{ fontSize: 22, color: "#ffd700", flexShrink: 0 }}>›</div>

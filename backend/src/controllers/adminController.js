@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
+const { grantBonusSpin } = require('./spinController');
 
 // ───────────── DASHBOARD STATS ─────────────
 
@@ -401,7 +402,7 @@ async function reviewSubmission(req, res) {
       );
       const milestonesEarned = Math.floor(newCoins / COIN_MILESTONE) - Math.floor(oldCoins / COIN_MILESTONE);
       for (let i = 0; i < milestonesEarned * SPINS_PER_MILESTONE; i++) {
-        await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [submission.userId]);
+        await grantBonusSpin(submission.userId);
       }
     } else if (action === 'REJECT') {
       await pool.query(
