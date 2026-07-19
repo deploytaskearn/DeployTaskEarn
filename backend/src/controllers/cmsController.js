@@ -200,6 +200,89 @@ async function updateSetting(req, res) {
   }
 }
 
+// ───────────── HELP VIDEOS ─────────────
+
+async function listHelpVideos(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT id, title, description, "videoUrl", "sortOrder" FROM "HelpVideo"
+       WHERE "isActive" = true ORDER BY "sortOrder" ASC, "createdAt" ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('listHelpVideos error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function adminListHelpVideos(req, res) {
+  try {
+    const result = await pool.query('SELECT * FROM "HelpVideo" ORDER BY "sortOrder" ASC, "createdAt" ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('adminListHelpVideos error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const helpVideoSchema = z.object({
+  title: z.string().min(2),
+  description: z.string().optional(),
+  videoUrl: z.string().url(),
+  isActive: z.boolean().default(true),
+  sortOrder: z.coerce.number().int().default(0),
+});
+
+async function createHelpVideo(req, res) {
+  try {
+    const data = helpVideoSchema.parse(req.body);
+    const result = await pool.query(
+      `INSERT INTO "HelpVideo" (id, title, description, "videoUrl", "isActive", "sortOrder", "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
+       RETURNING *`,
+      [data.title, data.description || null, data.videoUrl, data.isActive, data.sortOrder]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    console.error('createHelpVideo error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function updateHelpVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const data = helpVideoSchema.partial().parse(req.body);
+    const fields = Object.keys(data);
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    const setClauses = fields.map((f, i) => `"${f}" = $${i + 1}`).join(', ');
+    const values = fields.map((f) => data[f]);
+
+    const result = await pool.query(
+      `UPDATE "HelpVideo" SET ${setClauses}, "updatedAt" = now() WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Video not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    console.error('updateHelpVideo error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function deleteHelpVideo(req, res) {
+  try {
+    await pool.query('DELETE FROM "HelpVideo" WHERE id = $1', [req.params.id]);
+    res.status(204).send();
+  } catch (err) {
+    console.error('deleteHelpVideo error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // ───────────── TASK CATEGORIES ─────────────
 
 async function listCategories(req, res) {
@@ -243,4 +326,9 @@ module.exports = {
   updateSetting,
   listCategories,
   createCategory,
+  listHelpVideos,
+  adminListHelpVideos,
+  createHelpVideo,
+  updateHelpVideo,
+  deleteHelpVideo,
 };

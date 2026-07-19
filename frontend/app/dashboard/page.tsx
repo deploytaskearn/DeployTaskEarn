@@ -6,11 +6,12 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save } from "lucide-react";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { useSiteSettings } from "@/lib/site-settings-context";
 
 type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
@@ -18,6 +19,7 @@ type HistoryFilter = "pending" | "withdraw" | "deposit";
 export default function DashboardPage() {
   const { user, loading } = useRequireAuth();
   const { logout, refreshUser } = useAuth();
+  const siteSettings = useSiteSettings();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("main");
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
@@ -198,6 +200,24 @@ export default function DashboardPage() {
               Referral code: <span className="font-mono font-bold" style={{ color: "#00C875" }}>{referralCode}</span>
             </div>
           </div>
+
+          {/* FBR registration badge */}
+          {siteSettings.fbr_certificate_url && (
+            <a href={siteSettings.fbr_certificate_url} target="_blank" rel="noopener noreferrer"
+              className="mt-4 rounded-3xl p-4 flex items-center gap-4"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={siteSettings.fbr_certificate_url} alt="FBR registration certificate"
+                className="rounded-xl object-cover shrink-0" style={{ width: 56, height: 56, border: "1px solid rgba(255,255,255,0.1)" }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck size={14} style={{ color: "#00C875" }} />
+                  <span className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>FBR Registered</span>
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.45)" }}>Tap to view certificate</div>
+              </div>
+            </a>
+          )}
 
           {/* Active plans card */}
           {myPlanIds.length > 0 ? (
@@ -635,6 +655,10 @@ export default function DashboardPage() {
             <button onClick={() => router.push("/dashboard/withdraw")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <ArrowUpFromLine size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Withdraw earnings</span>
+            </button>
+            <button onClick={() => router.push("/dashboard/help")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
+              <PlayCircle size={18} style={{ color: "#00C875" }} />
+              <span className="text-sm font-medium">Help & Tutorials</span>
             </button>
             <Link href="/" className="flex items-center gap-3 px-5 py-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <Home size={18} style={{ color: "#00C875" }} />

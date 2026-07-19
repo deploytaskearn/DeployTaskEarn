@@ -198,6 +198,16 @@ export interface RedeemCode {
   createdAt: string;
 }
 
+export interface HelpVideo {
+  id: string;
+  title: string;
+  description?: string | null;
+  videoUrl: string;
+  isActive?: boolean;
+  sortOrder: number;
+  createdAt?: string;
+}
+
 export interface MysteryBoxPrize {
   id: string;
   label: string;

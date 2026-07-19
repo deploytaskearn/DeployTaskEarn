@@ -277,6 +277,16 @@ async function runMigrations() {
            ON CONFLICT (key) DO UPDATE SET value='1', "updatedAt"=now();
        END IF;
      END $$`,
+    `CREATE TABLE IF NOT EXISTS "HelpVideo" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      description TEXT,
+      "videoUrl" TEXT NOT NULL,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
   ];
   for (const stmt of patches) {
     try {

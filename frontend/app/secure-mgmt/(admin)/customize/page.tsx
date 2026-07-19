@@ -40,6 +40,9 @@ export default function AdminCustomizePage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [certUploading, setCertUploading] = useState(false);
+  const [certDragOver, setCertDragOver] = useState(false);
+  const certInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
@@ -111,11 +114,55 @@ export default function AdminCustomizePage() {
     saveSetting("site_logo", "").catch(() => {});
   }
 
+  async function uploadCertificate(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setError("Only image files allowed (JPG, PNG, WebP)");
+      return;
+    }
+    setCertUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("logo", file);
+      const res = await api.post("/admin/upload/logo", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const url: string = res.data.url;
+      setValues((prev) => ({ ...prev, fbr_certificate_url: url }));
+      await saveSetting("fbr_certificate_url", url);
+      setSavedKey("fbr_certificate_url");
+      setTimeout(() => setSavedKey((k) => (k === "fbr_certificate_url" ? null : k)), 3000);
+    } catch {
+      setError("Certificate upload failed. Check file size (max 5MB).");
+    } finally {
+      setCertUploading(false);
+    }
+  }
+
+  function onCertFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) uploadCertificate(file);
+    e.target.value = "";
+  }
+
+  function onCertDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setCertDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadCertificate(file);
+  }
+
+  function removeCertificate() {
+    setValues((prev) => ({ ...prev, fbr_certificate_url: "" }));
+    saveSetting("fbr_certificate_url", "").catch(() => {});
+  }
+
   function reset() {
     COLOR_FIELDS.forEach((f) => set(f.key, f.default));
   }
 
   const logoUrl = values["site_logo"];
+  const certUrl = values["fbr_certificate_url"];
   const waNumber = values["whatsapp_number"];
   const BACKEND = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:4000';
 
@@ -221,6 +268,66 @@ export default function AdminCustomizePage() {
             <div className="flex flex-col justify-center gap-1">
               <div className="text-sm font-medium" style={{ color: "rgba(245,242,234,0.6)" }}>No logo uploaded</div>
               <div className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>Shows ₨ symbol by default</div>
+              <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.35)" }}>Max size: 5 MB</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── FBR Certificate Upload ── */}
+      <div className="mb-8 rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--color-surface)" }}>FBR Registration Certificate</h3>
+        <p className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.45)" }}>Shown as a trust badge on the user dashboard. Upload a clear photo or scan of the certificate.</p>
+        <div className="flex flex-wrap items-start gap-6">
+          <div
+            onClick={() => certInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setCertDragOver(true); }}
+            onDragLeave={() => setCertDragOver(false)}
+            onDrop={onCertDrop}
+            className="flex flex-col items-center justify-center gap-2 cursor-pointer rounded-2xl transition-all"
+            style={{
+              width: 160, height: 120,
+              background: certDragOver ? "rgba(0,200,117,0.08)" : "rgba(255,255,255,0.04)",
+              border: certDragOver ? "2px dashed var(--color-accent)" : "2px dashed rgba(255,255,255,0.15)",
+            }}
+          >
+            {certUploading ? (
+              <div className="text-xs" style={{ color: "var(--color-muted)" }}>Uploading…</div>
+            ) : (
+              <>
+                <Upload size={22} style={{ color: "var(--color-muted)" }} />
+                <div className="text-xs text-center px-2" style={{ color: "rgba(245,242,234,0.45)" }}>
+                  Click or drag<br />JPG · PNG · WebP
+                </div>
+              </>
+            )}
+          </div>
+          <input ref={certInputRef} type="file" accept="image/*" className="hidden" onChange={onCertFileInput} />
+
+          {certUrl ? (
+            <div className="relative flex flex-col items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={certUrl}
+                alt="FBR certificate"
+                className="rounded-xl object-cover"
+                style={{ width: 120, height: 120, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              />
+              <div className="text-xs font-medium" style={{ color: savedKey === "fbr_certificate_url" ? "var(--color-accent)" : "rgba(245,242,234,0.5)" }}>
+                {savedKey === "fbr_certificate_url" ? "✓ Saved & live" : "Current certificate"}
+              </div>
+              <button
+                onClick={removeCertificate}
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ background: "var(--color-alert)", color: "#fff" }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col justify-center gap-1">
+              <div className="text-sm font-medium" style={{ color: "rgba(245,242,234,0.6)" }}>No certificate uploaded</div>
+              <div className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>Badge is hidden from users until one is set</div>
               <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.35)" }}>Max size: 5 MB</div>
             </div>
           )}

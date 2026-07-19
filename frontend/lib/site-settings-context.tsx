@@ -21,6 +21,9 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
       if (s.site_logo && !s.site_logo.startsWith("http")) {
         s.site_logo = uploadUrl(s.site_logo) ?? s.site_logo;
       }
+      if (s.fbr_certificate_url && !s.fbr_certificate_url.startsWith("http")) {
+        s.fbr_certificate_url = uploadUrl(s.fbr_certificate_url) ?? s.fbr_certificate_url;
+      }
       setSettings(s);
 
       // Apply color CSS vars

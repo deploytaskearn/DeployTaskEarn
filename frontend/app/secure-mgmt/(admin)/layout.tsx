@@ -21,6 +21,7 @@ import {
   X,
   Ticket,
   Package,
+  Video,
 } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ const NAV = [
   { href: "/secure-mgmt/users", label: "Users", icon: Users },
   { href: "/secure-mgmt/referrals", label: "Referrals", icon: GitBranch },
   { href: "/secure-mgmt/blog", label: "Blog", icon: Newspaper },
+  { href: "/secure-mgmt/help-videos", label: "Help Videos", icon: Video },
   { href: "/secure-mgmt/settings", label: "Payment settings", icon: Settings },
   { href: "/secure-mgmt/spin", label: "Spin Wheel", icon: Ticket },
   { href: "/secure-mgmt/mystery", label: "Mystery Box", icon: Package },
