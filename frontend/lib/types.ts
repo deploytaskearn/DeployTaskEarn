@@ -233,6 +233,7 @@ export interface MysteryBoxInfo {
   playsToday: number;
   canPlay: boolean;
   secondsUntilReset: number;
+  freeMysteryBoxTestMode?: boolean;
 }
 
 export interface DashboardStats {

@@ -12,6 +12,7 @@ interface MysteryInfo {
   canPlay: boolean;
   playsToday: number;
   secondsUntilReset: number;
+  freeMysteryBoxTestMode?: boolean;
   premiumPrizes: Prize[];
   premiumBoxPrice: number;
   walletBalance: number;
@@ -20,6 +21,7 @@ interface MysteryInfo {
 interface OpenResult {
   prize: { id: string; label: string; rewardAmount: string };
   secondsUntilReset: number;
+  canPlayAgain?: boolean;
 }
 
 
@@ -108,7 +110,7 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
       setTimeout(() => {
         setFreeResult(res.data);
         setFreePhase("revealed");
-        setCanPlay(false);
+        setCanPlay(!!res.data.canPlayAgain);
         setSecondsUntilReset(res.data.secondsUntilReset ?? 0);
         if (parseFloat(res.data.prize.rewardAmount) > 0) onWin();
       }, 1500);
@@ -135,7 +137,9 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
         <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 0" }}>
           <div>
             <div style={{ fontSize: 24, fontWeight: 900, color: "#F5F2EA" }}>🎁 Mystery Box</div>
-            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginTop: 2 }}>1 free box daily · buy premium anytime!</div>
+            <div style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginTop: 2 }}>
+              {info?.freeMysteryBoxTestMode ? "🧪 Testing mode — cooldown disabled" : "1 free box daily · buy premium anytime!"}
+            </div>
           </div>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 12, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <X size={18} color="#F5F2EA" />

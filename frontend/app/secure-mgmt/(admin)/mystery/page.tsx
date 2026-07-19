@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
-import { Plus, Pencil, Trash2, X, Settings } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Settings, ToggleLeft, ToggleRight, FlaskConical } from "lucide-react";
 
 interface Prize {
   id: string;
@@ -153,6 +153,8 @@ export default function AdminMysteryPage() {
   const [premiumBoxPrice, setPremiumBoxPrice] = useState<string>("");
   const [savingConfig, setSavingConfig] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
+  const [freeTestMode, setFreeTestMode] = useState(false);
+  const [savingTestMode, setSavingTestMode] = useState(false);
 
   // Modal
   const [modal, setModal] = useState<{ form: PrizeForm; type: "free" | "premium" } | null>(null);
@@ -170,9 +172,19 @@ export default function AdminMysteryPage() {
   }
   async function fetchConfig() {
     try {
-      const r = await api.get<{ premiumBoxPrice: number }>("/admin/mystery/config");
+      const r = await api.get<{ premiumBoxPrice: number; freeMysteryBoxTestMode: boolean }>("/admin/mystery/config");
       setPremiumBoxPrice(String(r.data.premiumBoxPrice));
+      setFreeTestMode(!!r.data.freeMysteryBoxTestMode);
     } catch {}
+  }
+
+  async function toggleTestMode() {
+    setSavingTestMode(true);
+    try {
+      const r = await api.post<{ freeMysteryBoxTestMode: boolean }>("/admin/mystery/config", { freeMysteryBoxTestMode: !freeTestMode });
+      setFreeTestMode(!!r.data.freeMysteryBoxTestMode);
+    } catch { /* ignore, leave state as-is */ }
+    finally { setSavingTestMode(false); }
   }
 
   useEffect(() => { fetchFree(); fetchPremium(); fetchConfig(); }, []);
@@ -302,6 +314,26 @@ export default function AdminMysteryPage() {
                 {savingConfig ? "Saving…" : "Save Price"}
               </button>
             </form>
+          </div>
+
+          <div style={{ marginTop: 20, padding: 24, borderRadius: 18, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <FlaskConical size={18} color="#7EB8FF" />
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA" }}>Free Mystery Box Testing Mode</h3>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginBottom: 18, lineHeight: 1.6 }}>
+              When enabled, the 24-hour cooldown on the Free Mystery Box is disabled for every user — anyone can open it repeatedly without waiting. Turn this off before going back to production.
+            </p>
+            <button onClick={toggleTestMode} disabled={savingTestMode}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-60"
+              style={{
+                background: freeTestMode ? "rgba(126,184,255,0.15)" : "rgba(255,255,255,0.06)",
+                color: freeTestMode ? "#7EB8FF" : "rgba(245,242,234,0.6)",
+                border: `1px solid ${freeTestMode ? "rgba(126,184,255,0.35)" : "rgba(255,255,255,0.1)"}`,
+              }}>
+              {freeTestMode ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+              {savingTestMode ? "Saving…" : freeTestMode ? "Testing mode ON — cooldown disabled" : "Testing mode OFF — normal 24h cooldown"}
+            </button>
           </div>
         </div>
       )}

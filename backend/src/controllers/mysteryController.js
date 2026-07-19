@@ -11,6 +11,14 @@ async function getPremiumBoxPrice() {
   return 300;
 }
 
+async function getFreeMysteryBoxTestMode() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='free_mystery_box_test_mode' LIMIT 1`);
+    return !!(r.rows.length && r.rows[0].value === '1');
+  } catch {}
+  return false;
+}
+
 async function getSecondsUntilNextPlay(userId) {
   const last = await pool.query(
     `SELECT "playedAt" FROM "UserMysteryBoxPlay" WHERE "userId"=$1 ORDER BY "playedAt" DESC LIMIT 1`,
@@ -24,14 +32,15 @@ async function getSecondsUntilNextPlay(userId) {
 async function getInfo(req, res) {
   try {
     const userId = req.user.id;
+    const testMode = await getFreeMysteryBoxTestMode();
 
-    // ALL users: 1 free box per 24h
+    // ALL users: 1 free box per 24h (bypassed when test mode is on)
     const r = await pool.query(
       `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
       [userId]
     );
     const playsToday = parseInt(r.rows[0].count);
-    const canPlay = playsToday < DAILY_LIMIT;
+    const canPlay = testMode || playsToday < DAILY_LIMIT;
     const secondsUntilReset = canPlay ? 0 : await getSecondsUntilNextPlay(userId);
 
     // Free prizes
@@ -54,6 +63,7 @@ async function getInfo(req, res) {
       canPlay,
       playsToday,
       secondsUntilReset,
+      freeMysteryBoxTestMode: testMode,
       premiumPrizes: premiumPrizes.rows,
       premiumBoxPrice,
       walletBalance,
@@ -67,15 +77,16 @@ async function getInfo(req, res) {
 async function openBox(req, res) {
   try {
     const userId = req.user.id;
+    const testMode = await getFreeMysteryBoxTestMode();
 
-    // ALL users: 1 free play per 24h
+    // ALL users: 1 free play per 24h (bypassed when test mode is on)
     const r = await pool.query(
       `SELECT COUNT(*) FROM "UserMysteryBoxPlay" WHERE "userId"=$1 AND "playedAt" > now() - interval '24 hours'`,
       [userId]
     );
     const playsToday = parseInt(r.rows[0].count);
 
-    if (playsToday >= DAILY_LIMIT) {
+    if (!testMode && playsToday >= DAILY_LIMIT) {
       const secs = await getSecondsUntilNextPlay(userId);
       const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
       return res.status(422).json({
@@ -112,6 +123,7 @@ async function openBox(req, res) {
       playsToday: playsToday + 1,
       playsRemaining: 0,
       secondsUntilReset: secs,
+      canPlayAgain: testMode,
     });
   } catch (err) {
     console.error('mystery openBox:', err);
@@ -221,22 +233,37 @@ async function adminDeletePremiumPrize(req, res) {
 async function adminGetConfig(req, res) {
   try {
     const price = await getPremiumBoxPrice();
-    res.json({ premiumBoxPrice: price });
+    const freeMysteryBoxTestMode = await getFreeMysteryBoxTestMode();
+    res.json({ premiumBoxPrice: price, freeMysteryBoxTestMode });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 async function adminSetConfig(req, res) {
   try {
-    const { premiumBoxPrice } = req.body;
-    if (premiumBoxPrice === undefined || isNaN(parseFloat(premiumBoxPrice))) {
-      return res.status(400).json({ error: 'premiumBoxPrice is required' });
+    const { premiumBoxPrice, freeMysteryBoxTestMode } = req.body;
+
+    if (premiumBoxPrice !== undefined) {
+      if (isNaN(parseFloat(premiumBoxPrice))) {
+        return res.status(400).json({ error: 'premiumBoxPrice must be a number' });
+      }
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('premium_box_price', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [String(parseFloat(premiumBoxPrice))]
+      );
     }
-    await pool.query(
-      `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('premium_box_price', $1, now())
-       ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
-      [String(parseFloat(premiumBoxPrice))]
-    );
-    res.json({ ok: true, premiumBoxPrice: parseFloat(premiumBoxPrice) });
+
+    if (freeMysteryBoxTestMode !== undefined) {
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('free_mystery_box_test_mode', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [freeMysteryBoxTestMode ? '1' : '0']
+      );
+    }
+
+    const price = await getPremiumBoxPrice();
+    const testMode = await getFreeMysteryBoxTestMode();
+    res.json({ ok: true, premiumBoxPrice: price, freeMysteryBoxTestMode: testMode });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
