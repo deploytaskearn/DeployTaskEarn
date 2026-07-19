@@ -397,8 +397,12 @@ async function runMigrations() {
     }
     console.log('Seed data ready');
 
-    // Seed free tasks (visible to ALL users — NOT assigned to any plan)
+    // Seed free tasks (visible to ALL users — NOT assigned to any plan).
+    // Guarded by a one-time flag so admin-deleted seed tasks never come back on a redeploy.
     try {
+      const seededFlag = await pool.query(`SELECT 1 FROM "SiteSetting" WHERE key='free_tasks_seeded_v1' LIMIT 1`);
+      if (seededFlag.rows.length === 0) {
+
       const catRes = await pool.query(`SELECT id FROM "TaskCategory" WHERE slug = 'social-media' LIMIT 1`);
       const catId = catRes.rows[0]?.id || null;
 
@@ -483,7 +487,11 @@ async function runMigrations() {
           );
         }
       }
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('free_tasks_seeded_v1', '1', now()) ON CONFLICT (key) DO NOTHING`
+      );
       console.log('Free tasks + plan tasks seeded');
+      }
     } catch (err) {
       console.error('Task seed warning:', err.message);
     }
