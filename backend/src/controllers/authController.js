@@ -11,9 +11,40 @@ const { sendEmail } = require('../utils/email');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://taskearn.tech';
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function sendVerificationEmail(user) {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+
+  await pool.query('DELETE FROM "EmailVerificationToken" WHERE "userId" = $1 AND "usedAt" IS NULL', [user.id]);
+  await pool.query(
+    `INSERT INTO "EmailVerificationToken" (id, "userId", "tokenHash", "expiresAt", "createdAt")
+     VALUES (gen_random_uuid(), $1, $2, $3, now())`,
+    [user.id, tokenHash, expiresAt]
+  );
+
+  const verifyLink = `${FRONTEND_URL}/verify-email?token=${rawToken}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Verify your TaskEarn account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="color:#0E1C15">Verify your email</h2>
+        <p>Hi ${user.name || ''},</p>
+        <p>Thanks for joining TaskEarn! Click the button below to verify your email and get a verified badge on your account. This link expires in 24 hours.</p>
+        <p style="margin:28px 0">
+          <a href="${verifyLink}" style="background:#00C875;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Verify Email</a>
+        </p>
+        <p style="color:#999;font-size:12px">Or paste this link in your browser: ${verifyLink}</p>
+      </div>
+    `,
+  });
 }
 
 const registerSchema = z.object({
@@ -77,6 +108,11 @@ async function register(req, res) {
        VALUES (gen_random_uuid(), $1, 0, 'PKR', now())`,
       [user.id]
     );
+
+    // Best-effort — a failed verification email should never block registration.
+    sendVerificationEmail(user).catch((err) => {
+      console.error('register: failed to send verification email:', err.message);
+    });
 
     const token = signToken({ userId: user.id, role: user.role });
 
@@ -199,7 +235,7 @@ async function getMe(req, res) {
       return res.status(403).json({ error: 'Admin accounts cannot access the user portal.' });
     }
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.role, u."referralCode", u."createdAt",
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u."referralCode", u."createdAt", u."emailVerifiedAt",
               w.balance, w.currency,
               COALESCE(uc.coins, 0) AS coins
        FROM "User" u
@@ -322,4 +358,47 @@ async function resetPassword(req, res) {
   }
 }
 
-module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile, forgotPassword, resetPassword };
+const verifyEmailSchema = z.object({ token: z.string().min(1) });
+
+async function verifyEmail(req, res) {
+  try {
+    const { token } = verifyEmailSchema.parse(req.body);
+    const tokenHash = hashToken(token);
+
+    const tokenResult = await pool.query(
+      `SELECT * FROM "EmailVerificationToken"
+       WHERE "tokenHash" = $1 AND "usedAt" IS NULL AND "expiresAt" > now()`,
+      [tokenHash]
+    );
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'This verification link is invalid or has expired. Please request a new one.' });
+    }
+    const verifyToken = tokenResult.rows[0];
+
+    await pool.query('UPDATE "User" SET "emailVerifiedAt" = now(), "updatedAt" = now() WHERE id = $1', [verifyToken.userId]);
+    await pool.query('UPDATE "EmailVerificationToken" SET "usedAt" = now() WHERE id = $1', [verifyToken.id]);
+
+    res.json({ message: 'Email verified! Your account now has a verified badge.' });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid token is required.' });
+    console.error('verifyEmail error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function resendVerification(req, res) {
+  try {
+    const result = await pool.query('SELECT id, name, email, "emailVerifiedAt" FROM "User" WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.emailVerifiedAt) return res.status(400).json({ error: 'Your email is already verified.' });
+
+    await sendVerificationEmail(user);
+    res.json({ message: 'Verification email sent. Please check your inbox.' });
+  } catch (err) {
+    console.error('resendVerification error:', err);
+    res.status(500).json({ error: 'Failed to send verification email. Please try again shortly.' });
+  }
+}
+
+module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile, forgotPassword, resetPassword, verifyEmail, resendVerification };

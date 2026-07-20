@@ -901,6 +901,22 @@ function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
   const [phone, setPhone] = useState(user.phone ?? "");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resending, setResending] = useState(false);
+  const isVerified = !!user.emailVerifiedAt;
+
+  async function handleResendVerification() {
+    setResending(true);
+    setMsg(null);
+    try {
+      const r = await api.post("/auth/resend-verification");
+      setMsg({ ok: true, text: r.data.message || "Verification email sent." });
+    } catch (err: unknown) {
+      const text = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to send verification email.";
+      setMsg({ ok: false, text });
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) return;
@@ -950,7 +966,14 @@ function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
             {(user.name ?? "?")[0].toUpperCase()}
           </span>
         </div>
-        <div className="text-base font-bold" style={{ color: "#F5F2EA" }}>{user.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-base font-bold" style={{ color: "#F5F2EA" }}>{user.name}</span>
+          {isVerified && (
+            <span title="Verified account" className="flex items-center justify-center w-5 h-5 rounded-full shrink-0" style={{ background: "#00C875" }}>
+              <ShieldCheck size={12} style={{ color: "#000" }} strokeWidth={3} />
+            </span>
+          )}
+        </div>
         <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.4)" }}>Member since {new Date(user.createdAt).toLocaleDateString()}</div>
       </div>
 
@@ -984,8 +1007,25 @@ function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
             <Mail size={14} style={{ color: "#00C875" }} />
             <span className="text-xs uppercase tracking-wide font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>Email</span>
           </div>
-          <div className="text-sm font-semibold mt-1" style={{ color: "#F5F2EA" }}>{user.email}</div>
-          <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.3)" }}>Email cannot be changed</div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className="text-sm font-semibold" style={{ color: "#F5F2EA" }}>{user.email}</span>
+            {isVerified ? (
+              <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,200,117,0.12)", color: "#00C875" }}>
+                <ShieldCheck size={11} /> Verified
+              </span>
+            ) : (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>
+                Not verified
+              </span>
+            )}
+          </div>
+          {!isVerified && (
+            <button onClick={handleResendVerification} disabled={resending}
+              className="text-xs font-semibold mt-2 disabled:opacity-60" style={{ color: "#00C875" }}>
+              {resending ? "Sending…" : "Resend verification email"}
+            </button>
+          )}
+          <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.3)" }}>Email cannot be changed</div>
         </div>
 
         {/* Phone */}

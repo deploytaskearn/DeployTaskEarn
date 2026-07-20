@@ -323,6 +323,16 @@ async function runMigrations() {
       "createdAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId")`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailVerifiedAt" TIMESTAMP`,
+    `CREATE TABLE IF NOT EXISTS "EmailVerificationToken" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      "tokenHash" TEXT NOT NULL UNIQUE,
+      "expiresAt" TIMESTAMP NOT NULL,
+      "usedAt" TIMESTAMP,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "EmailVerificationToken_userId_idx" ON "EmailVerificationToken"("userId")`,
     `CREATE TABLE IF NOT EXISTS "HelpVideo" (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       title TEXT NOT NULL,

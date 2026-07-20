@@ -11,6 +11,7 @@ export interface User {
   currency?: string;
   coins?: number;
   createdAt: string;
+  emailVerifiedAt?: string | null;
 }
 
 export interface Task {
