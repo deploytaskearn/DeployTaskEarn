@@ -896,27 +896,13 @@ export default function DashboardPage() {
 import { User } from "@/lib/types";
 
 function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [resending, setResending] = useState(false);
   const isVerified = !!user.emailVerifiedAt;
-
-  async function handleResendVerification() {
-    setResending(true);
-    setMsg(null);
-    try {
-      const r = await api.post("/auth/resend-verification");
-      setMsg({ ok: true, text: r.data.message || "Verification email sent." });
-    } catch (err: unknown) {
-      const text = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to send verification email.";
-      setMsg({ ok: false, text });
-    } finally {
-      setResending(false);
-    }
-  }
 
   async function handleSave() {
     if (!name.trim()) return;
@@ -1020,9 +1006,9 @@ function ProfileTab({ user, onBack }: { user: User; onBack: () => void }) {
             )}
           </div>
           {!isVerified && (
-            <button onClick={handleResendVerification} disabled={resending}
-              className="text-xs font-semibold mt-2 disabled:opacity-60" style={{ color: "#00C875" }}>
-              {resending ? "Sending…" : "Resend verification email"}
+            <button onClick={() => router.push("/verify-email")}
+              className="text-xs font-semibold mt-2" style={{ color: "#00C875" }}>
+              Verify my email →
             </button>
           )}
           <div className="text-xs mt-1" style={{ color: "rgba(245,242,234,0.3)" }}>Email cannot be changed</div>

@@ -9,18 +9,36 @@ const {
 } = require('../utils/auth');
 const { sendEmail } = require('../utils/email');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://taskearn.tech';
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RESET_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const VERIFY_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+// 6-digit numeric OTP (always starts 1-9, so it's always exactly 6 digits).
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function otpEmailHtml({ heading, name, intro, otp, minutes }) {
+  return `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#0E1C15">${heading}</h2>
+      <p>Hi ${name || ''},</p>
+      <p>${intro}</p>
+      <p style="margin:28px 0;text-align:center">
+        <span style="display:inline-block;background:#0E1C15;color:#00C875;font-size:32px;font-weight:700;letter-spacing:8px;padding:16px 24px;border-radius:12px">${otp}</span>
+      </p>
+      <p style="color:#666;font-size:13px">This code expires in ${minutes} minutes.</p>
+    </div>
+  `;
+}
+
 async function sendVerificationEmail(user) {
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+  const otp = generateOtp();
+  const tokenHash = hashToken(otp);
+  const expiresAt = new Date(Date.now() + VERIFY_OTP_TTL_MS);
 
   await pool.query('DELETE FROM "EmailVerificationToken" WHERE "userId" = $1 AND "usedAt" IS NULL', [user.id]);
   await pool.query(
@@ -29,21 +47,16 @@ async function sendVerificationEmail(user) {
     [user.id, tokenHash, expiresAt]
   );
 
-  const verifyLink = `${FRONTEND_URL}/verify-email?token=${rawToken}`;
   await sendEmail({
     to: user.email,
     subject: 'Verify your TaskEarn account',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-        <h2 style="color:#0E1C15">Verify your email</h2>
-        <p>Hi ${user.name || ''},</p>
-        <p>Thanks for joining TaskEarn! Click the button below to verify your email and get a verified badge on your account. This link expires in 24 hours.</p>
-        <p style="margin:28px 0">
-          <a href="${verifyLink}" style="background:#00C875;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Verify Email</a>
-        </p>
-        <p style="color:#999;font-size:12px">Or paste this link in your browser: ${verifyLink}</p>
-      </div>
-    `,
+    html: otpEmailHtml({
+      heading: 'Verify your email',
+      name: user.name,
+      intro: 'Thanks for joining TaskEarn! Enter this code to verify your email and get a verified badge on your account.',
+      otp,
+      minutes: 10,
+    }),
   });
 }
 
@@ -275,7 +288,7 @@ async function forgotPassword(req, res) {
 
     // Always respond the same way whether or not the email exists, so this
     // endpoint can't be used to enumerate registered accounts.
-    const GENERIC_RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
+    const GENERIC_RESPONSE = { message: 'If that email is registered, a reset code has been sent.' };
 
     const userResult = await pool.query('SELECT id, name FROM "User" WHERE LOWER(email) = LOWER($1)', [email]);
     if (userResult.rows.length === 0) {
@@ -283,11 +296,11 @@ async function forgotPassword(req, res) {
     }
     const user = userResult.rows[0];
 
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    const otp = generateOtp();
+    const tokenHash = hashToken(otp);
+    const expiresAt = new Date(Date.now() + RESET_OTP_TTL_MS);
 
-    // Invalidate any previous unused reset tokens for this user first.
+    // Invalidate any previous unused reset codes for this user first.
     await pool.query('DELETE FROM "PasswordResetToken" WHERE "userId" = $1 AND "usedAt" IS NULL', [user.id]);
     await pool.query(
       `INSERT INTO "PasswordResetToken" (id, "userId", "tokenHash", "expiresAt", "createdAt")
@@ -295,23 +308,17 @@ async function forgotPassword(req, res) {
       [user.id, tokenHash, expiresAt]
     );
 
-    const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
     try {
       await sendEmail({
         to: email,
-        subject: 'Reset your TaskEarn password',
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-            <h2 style="color:#0E1C15">Reset your password</h2>
-            <p>Hi ${user.name || ''},</p>
-            <p>We received a request to reset your TaskEarn password. Click the button below to choose a new one. This link expires in 1 hour.</p>
-            <p style="margin:28px 0">
-              <a href="${resetLink}" style="background:#00C875;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset Password</a>
-            </p>
-            <p style="color:#666;font-size:13px">If you didn't request this, you can safely ignore this email — your password won't change.</p>
-            <p style="color:#999;font-size:12px">Or paste this link in your browser: ${resetLink}</p>
-          </div>
-        `,
+        subject: 'Your TaskEarn password reset code',
+        html: otpEmailHtml({
+          heading: 'Reset your password',
+          name: user.name,
+          intro: 'We received a request to reset your TaskEarn password. Enter this code to continue. If you didn\'t request this, you can safely ignore this email.',
+          otp,
+          minutes: 10,
+        }),
       });
     } catch (emailErr) {
       console.error('forgotPassword: failed to send email:', emailErr.message);
@@ -326,25 +333,53 @@ async function forgotPassword(req, res) {
   }
 }
 
+async function findValidResetToken(email, otp) {
+  const userResult = await pool.query('SELECT id FROM "User" WHERE LOWER(email) = LOWER($1)', [email]);
+  if (userResult.rows.length === 0) return null;
+  const userId = userResult.rows[0].id;
+
+  const tokenHash = hashToken(otp);
+  const tokenResult = await pool.query(
+    `SELECT * FROM "PasswordResetToken"
+     WHERE "userId" = $1 AND "tokenHash" = $2 AND "usedAt" IS NULL AND "expiresAt" > now()`,
+    [userId, tokenHash]
+  );
+  return tokenResult.rows[0] || null;
+}
+
+const verifyResetOtpSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().min(6).max(6),
+});
+
+async function verifyResetOtp(req, res) {
+  try {
+    const { email, otp } = verifyResetOtpSchema.parse(req.body);
+    const resetToken = await findValidResetToken(email, otp);
+    if (!resetToken) {
+      return res.status(400).json({ error: 'This code is invalid or has expired. Please request a new one.' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid email and 6-digit code are required.' });
+    console.error('verifyResetOtp error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 const resetPasswordSchema = z.object({
-  token: z.string().min(1),
+  email: z.string().email(),
+  otp: z.string().min(6).max(6),
   password: z.string().min(6).max(100),
 });
 
 async function resetPassword(req, res) {
   try {
-    const { token, password } = resetPasswordSchema.parse(req.body);
-    const tokenHash = hashToken(token);
-
-    const tokenResult = await pool.query(
-      `SELECT * FROM "PasswordResetToken"
-       WHERE "tokenHash" = $1 AND "usedAt" IS NULL AND "expiresAt" > now()`,
-      [tokenHash]
-    );
-    if (tokenResult.rows.length === 0) {
-      return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
+    const { email, otp, password } = resetPasswordSchema.parse(req.body);
+    const resetToken = await findValidResetToken(email, otp);
+    if (!resetToken) {
+      return res.status(400).json({ error: 'This code is invalid or has expired. Please request a new one.' });
     }
-    const resetToken = tokenResult.rows[0];
 
     const passwordHash = await hashPassword(password);
     await pool.query('UPDATE "User" SET "passwordHash" = $1, "updatedAt" = now() WHERE id = $2', [passwordHash, resetToken.userId]);
@@ -352,26 +387,26 @@ async function resetPassword(req, res) {
 
     res.json({ message: 'Password updated. You can now log in with your new password.' });
   } catch (err) {
-    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid token and password (min 6 characters) are required.' });
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid email, code, and password (min 6 characters) are required.' });
     console.error('resetPassword error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-const verifyEmailSchema = z.object({ token: z.string().min(1) });
+const verifyEmailSchema = z.object({ otp: z.string().min(6).max(6) });
 
 async function verifyEmail(req, res) {
   try {
-    const { token } = verifyEmailSchema.parse(req.body);
-    const tokenHash = hashToken(token);
+    const { otp } = verifyEmailSchema.parse(req.body);
+    const tokenHash = hashToken(otp);
 
     const tokenResult = await pool.query(
       `SELECT * FROM "EmailVerificationToken"
-       WHERE "tokenHash" = $1 AND "usedAt" IS NULL AND "expiresAt" > now()`,
-      [tokenHash]
+       WHERE "userId" = $1 AND "tokenHash" = $2 AND "usedAt" IS NULL AND "expiresAt" > now()`,
+      [req.user.id, tokenHash]
     );
     if (tokenResult.rows.length === 0) {
-      return res.status(400).json({ error: 'This verification link is invalid or has expired. Please request a new one.' });
+      return res.status(400).json({ error: 'This code is invalid or has expired. Please request a new one.' });
     }
     const verifyToken = tokenResult.rows[0];
 
@@ -380,7 +415,7 @@ async function verifyEmail(req, res) {
 
     res.json({ message: 'Email verified! Your account now has a verified badge.' });
   } catch (err) {
-    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid token is required.' });
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'A valid 6-digit code is required.' });
     console.error('verifyEmail error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -401,4 +436,4 @@ async function resendVerification(req, res) {
   }
 }
 
-module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile, forgotPassword, resetPassword, verifyEmail, resendVerification };
+module.exports = { register, login, adminLogin, getMe, adminMe, updateProfile, forgotPassword, verifyResetOtp, resetPassword, verifyEmail, resendVerification };

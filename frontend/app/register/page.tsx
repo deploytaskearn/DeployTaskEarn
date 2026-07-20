@@ -29,7 +29,7 @@ function RegisterForm() {
     setLoading(true);
     try {
       await register({ name, email, password, phone: phone || undefined, referralCode: referralCode || undefined });
-      router.push("/dashboard");
+      router.push("/verify-email");
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Registration failed. Please try again.";

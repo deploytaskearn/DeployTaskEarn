@@ -10,7 +10,8 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const email = searchParams.get("email") || "";
+  const otp = searchParams.get("otp") || "";
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -27,7 +28,7 @@ function ResetPasswordForm() {
     }
     setLoading(true);
     try {
-      await api.post("/auth/reset-password", { token, password });
+      await api.post("/auth/reset-password", { email, otp, password });
       setDone(true);
       setTimeout(() => router.push("/login"), 2500);
     } catch (err: unknown) {
@@ -39,11 +40,11 @@ function ResetPasswordForm() {
     }
   }
 
-  if (!token) {
+  if (!email || !otp) {
     return (
       <div className="flex items-start gap-2 text-sm p-4 rounded-sm" style={{ background: "rgba(232,99,58,0.12)", color: "var(--color-alert)" }}>
         <AlertCircle size={16} className="mt-0.5 shrink-0" />
-        <span>This reset link is missing its token. Please request a new one from the <Link href="/forgot-password" style={{ color: "var(--color-accent)" }}>forgot password</Link> page.</span>
+        <span>This link is missing information. Please start again from the <Link href="/forgot-password" style={{ color: "var(--color-accent)" }}>forgot password</Link> page.</span>
       </div>
     );
   }
@@ -110,7 +111,7 @@ export default function ResetPasswordPage() {
       <section className="py-20 md:py-28">
         <div className="max-w-sm mx-auto px-5">
           <h1 className="font-display text-3xl md:text-4xl mb-2" style={{ color: "var(--color-surface)" }}>
-            Set a new password
+            Create new password
           </h1>
           <p className="text-sm mb-8" style={{ color: "rgba(245,242,234,0.6)" }}>
             Choose a new password for your account.
