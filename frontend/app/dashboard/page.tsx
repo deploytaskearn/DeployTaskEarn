@@ -154,7 +154,7 @@ export default function DashboardPage() {
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0A1A12", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#0A1A12", overflow: "hidden" }}>
 
       {/* ── Top bar ── */}
       <div style={{ flexShrink: 0 }} className="flex items-center justify-between px-5 pt-5 pb-2 w-full max-w-2xl mx-auto">
