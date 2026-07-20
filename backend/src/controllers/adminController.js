@@ -253,6 +253,25 @@ async function updateTask(req, res) {
     const { id } = req.params;
     const data = taskSchema.partial().parse(req.body);
 
+    // categoryName is a virtual field (resolved to a real categoryId below) —
+    // it's never an actual column on Task, so it must never reach the SQL.
+    if (data.categoryName !== undefined) {
+      const name = data.categoryName.trim();
+      if (name) {
+        const existing = await pool.query('SELECT id FROM "TaskCategory" WHERE LOWER(name) = LOWER($1) LIMIT 1', [name]);
+        if (existing.rows.length > 0) {
+          data.categoryId = existing.rows[0].id;
+        } else {
+          const created = await pool.query(
+            'INSERT INTO "TaskCategory" (id, name, slug, "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, now(), now()) RETURNING id',
+            [name, name.toLowerCase().replace(/\s+/g, '-')]
+          );
+          data.categoryId = created.rows[0].id;
+        }
+      }
+      delete data.categoryName;
+    }
+
     const fields = Object.keys(data);
     if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
