@@ -102,6 +102,14 @@ async function deleteUser(req, res) {
     await pool.query('DELETE FROM "Deposit" WHERE "userId" = $1', [id]);
     await pool.query('DELETE FROM "Withdrawal" WHERE "userId" = $1', [id]);
     await pool.query('DELETE FROM "UserPlan" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserSpin" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserGoldSpinPlay" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserBonusSpin" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserGoldSpinCredit" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserMysteryBoxPlay" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserPremiumBoxPlay" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "UserCoin" WHERE "userId" = $1', [id]);
+    await pool.query('DELETE FROM "RedeemCodeUse" WHERE "userId" = $1', [id]);
     await pool.query('DELETE FROM "Wallet" WHERE "userId" = $1', [id]);
     await pool.query('UPDATE "User" SET "referredById" = NULL WHERE "referredById" = $1', [id]);
     await pool.query('DELETE FROM "User" WHERE id = $1', [id]);
