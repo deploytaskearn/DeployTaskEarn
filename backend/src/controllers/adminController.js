@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
-const { grantBonusSpin } = require('./spinController');
+const { approveSubmission } = require('../services/taskApprovalService');
 
 // ───────────── DASHBOARD STATS ─────────────
 
@@ -374,36 +374,7 @@ async function reviewSubmission(req, res) {
     }
 
     if (action === 'APPROVE') {
-      await walletService.credit(
-        submission.userId,
-        parseFloat(submission.rewardAmount),
-        'TASK_EARNING',
-        submission.id,
-        'Task submission approved'
-      );
-      await pool.query(
-        `UPDATE "TaskSubmission" SET status = 'APPROVED', "reviewedById" = $1, "reviewNote" = $2,
-         "rewardPaid" = $3, "reviewedAt" = now() WHERE id = $4`,
-        [req.user.id, note || null, submission.rewardAmount, id]
-      );
-      await pool.query('UPDATE "Task" SET "completedCount" = "completedCount" + 1 WHERE id = $1', [submission.taskId]);
-
-      // Award 10 coins per task; every 500 coins = 3 bonus spins
-      const COINS_PER_TASK = 10;
-      const COIN_MILESTONE = 500;
-      const SPINS_PER_MILESTONE = 3;
-      const coinRow = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [submission.userId]);
-      const oldCoins = coinRow.rows.length ? coinRow.rows[0].coins : 0;
-      const newCoins = oldCoins + COINS_PER_TASK;
-      await pool.query(
-        `INSERT INTO "UserCoin" ("userId", coins) VALUES ($1, $2)
-         ON CONFLICT ("userId") DO UPDATE SET coins=$2, "updatedAt"=now()`,
-        [submission.userId, newCoins]
-      );
-      const milestonesEarned = Math.floor(newCoins / COIN_MILESTONE) - Math.floor(oldCoins / COIN_MILESTONE);
-      for (let i = 0; i < milestonesEarned * SPINS_PER_MILESTONE; i++) {
-        await grantBonusSpin(submission.userId);
-      }
+      await approveSubmission(submission, { reviewedById: req.user.id, note: note || null });
     } else if (action === 'REJECT') {
       await pool.query(
         `UPDATE "TaskSubmission" SET status = 'REJECTED', "reviewedById" = $1, "reviewNote" = $2, "reviewedAt" = now() WHERE id = $3`,

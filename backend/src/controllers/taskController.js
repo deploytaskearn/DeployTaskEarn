@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
+const { approveSubmission } = require('../services/taskApprovalService');
 
 async function listTasks(req, res) {
   try {
@@ -109,8 +110,24 @@ async function submitTask(req, res) {
       return res.status(400).json({ error: 'Proof is required for this task (screenshot or description).' });
     }
 
-    // Hold for admin review — wallet credit, coins, and bonus spins are all
-    // awarded by reviewSubmission() once an admin approves this submission.
+    // A task with PlanTask rows belongs to one or more plans — only members of
+    // one of those plans may submit it, and their submission auto-approves.
+    // Free tasks (no PlanTask rows) still require manual admin review.
+    const planLinks = await pool.query('SELECT "planId" FROM "PlanTask" WHERE "taskId" = $1', [taskId]);
+    const isPlanTask = planLinks.rows.length > 0;
+
+    if (isPlanTask) {
+      const planIds = planLinks.rows.map((r) => r.planId);
+      const ownsPlan = await pool.query(
+        `SELECT 1 FROM "UserPlan" WHERE "userId" = $1 AND "planId" = ANY($2::uuid[])
+         AND status = 'ACTIVE' AND ("endDate" IS NULL OR "endDate" > now()) LIMIT 1`,
+        [userId, planIds]
+      );
+      if (ownsPlan.rows.length === 0) {
+        return res.status(403).json({ error: 'You need an active plan to submit this task.' });
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO "TaskSubmission"
          (id, "taskId", "userId", status, "proofText", "proofFileUrl", "createdAt")
@@ -118,6 +135,16 @@ async function submitTask(req, res) {
        RETURNING *`,
       [taskId, userId, proofText, proofFileUrl]
     );
+
+    if (isPlanTask) {
+      await approveSubmission({ ...result.rows[0], rewardAmount: task.rewardAmount }, {});
+      const updated = await pool.query('SELECT * FROM "TaskSubmission" WHERE id = $1', [result.rows[0].id]);
+      return res.status(201).json({
+        submission: updated.rows[0],
+        pending: false,
+        message: 'Approved automatically! The reward has been added to your wallet.',
+      });
+    }
 
     res.status(201).json({
       submission: result.rows[0],

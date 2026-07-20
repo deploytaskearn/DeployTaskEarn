@@ -166,10 +166,12 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     if (proofText.trim()) form.append("proofText", proofText.trim());
 
     try {
-      await api.post(`/tasks/${task.id}/submit`, form, {
+      const res = await api.post(`/tasks/${task.id}/submit`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true, submissionStatus: "PENDING" } : t));
+      const status = res.data.pending ? "PENDING" : "APPROVED";
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true, submissionStatus: status } : t));
+      if (status === "APPROVED") onRewardEarned?.();
     } catch {
       load();
     } finally {
