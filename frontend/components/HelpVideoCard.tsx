@@ -7,24 +7,26 @@ import { getYouTubeEmbedUrl, getYouTubeThumbnailUrl } from "@/lib/youtube";
 const VIDEO_FILE_PATTERN = /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i;
 
 // Compact square thumbnail for tight grids (e.g. 3-up on the dashboard home).
-// Always links out rather than embedding — a live iframe/video at this size
-// isn't usable anyway.
+// Opens the video in a lightbox via onClick — never navigates away.
 export function HelpVideoThumb({ video, onClick }: { video: HelpVideo; onClick: () => void }) {
   const thumbUrl = getYouTubeThumbnailUrl(video.videoUrl);
+  const isUploadedFile = !thumbUrl && VIDEO_FILE_PATTERN.test(video.videoUrl);
   return (
     <button onClick={onClick} style={{ display: "flex", flexDirection: "column", textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", minWidth: 0 }}>
       <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", borderRadius: 14, overflow: "hidden", background: "#0a1a12", border: "1px solid rgba(255,255,255,0.08)" }}>
         {thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumbUrl} alt={video.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : isUploadedFile ? (
+          <video src={video.videoUrl} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,200,117,0.06)" }}>
             <PlayCircle size={22} style={{ color: "rgba(0,200,117,0.4)" }} />
           </div>
         )}
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <PlayCircle size={18} style={{ color: "#fff" }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <PlayCircle size={20} style={{ color: "#fff" }} />
           </div>
         </div>
       </div>

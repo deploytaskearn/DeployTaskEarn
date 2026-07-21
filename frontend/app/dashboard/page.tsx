@@ -12,7 +12,7 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
-import { HelpVideoThumb } from "@/components/HelpVideoCard";
+import { HelpVideoThumb, HelpVideoCard } from "@/components/HelpVideoCard";
 
 type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
@@ -49,6 +49,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [referralDetailsLoading, setReferralDetailsLoading] = useState(false);
   const [helpVideos, setHelpVideos] = useState<HelpVideo[]>([]);
+  const [activeVideo, setActiveVideo] = useState<HelpVideo | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -412,7 +413,7 @@ export default function DashboardPage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                 {helpVideos.slice(0, 3).map((v) => (
-                  <HelpVideoThumb key={v.id} video={v} onClick={() => router.push("/dashboard/help")} />
+                  <HelpVideoThumb key={v.id} video={v} onClick={() => setActiveVideo(v)} />
                 ))}
               </div>
             </div>
@@ -884,6 +885,20 @@ export default function DashboardPage() {
           onClose={() => { setShowMystery(false); refreshBalance(); }}
           onWin={() => { refreshBalance(); }}
         />
+      )}
+
+      {/* Help video lightbox */}
+      {activeVideo && (
+        <div onClick={() => setActiveVideo(null)} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+              <button onClick={() => setActiveVideo(null)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 12, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <XIcon size={18} color="#F5F2EA" />
+              </button>
+            </div>
+            <HelpVideoCard video={activeVideo} />
+          </div>
+        </div>
       )}
 
       {/* ── Bottom navigation ── */}
