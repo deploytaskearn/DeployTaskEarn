@@ -16,8 +16,6 @@ export default function GoldSpinPage() {
 
   const [goldSegments, setGoldSegments] = useState<SpinSegment[]>([]);
   const [goldSpinPrice, setGoldSpinPrice] = useState(500);
-  const [goldSpinCoinCost, setGoldSpinCoinCost] = useState(800);
-  const [userCoins, setUserCoins] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [goldCredits, setGoldCredits] = useState(0);
   const [fetchError, setFetchError] = useState("");
@@ -26,7 +24,6 @@ export default function GoldSpinPage() {
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<GoldSpinResult | null>(null);
   const [buying, setBuying] = useState(false);
-  const [redeeming, setRedeeming] = useState(false);
   const [error, setError] = useState("");
   const prevRot = useRef(0);
 
@@ -36,8 +33,6 @@ export default function GoldSpinPage() {
       .then(r => {
         setGoldSegments(r.data.goldSegments ?? []);
         setGoldSpinPrice(r.data.goldSpinPrice ?? 500);
-        setGoldSpinCoinCost(r.data.goldSpinCoinCost ?? 800);
-        setUserCoins(r.data.userCoins ?? 0);
         setWalletBalance(r.data.walletBalance ?? 0);
         setGoldCredits(r.data.goldCredits ?? 0);
       })
@@ -46,7 +41,6 @@ export default function GoldSpinPage() {
 
   const canAfford = walletBalance >= goldSpinPrice;
   const need = Math.max(0, goldSpinPrice - walletBalance);
-  const canAffordWithCoins = userCoins >= goldSpinCoinCost;
 
   // Step 1: purchase a credit only — does NOT spin the wheel.
   async function handleBuy() {
@@ -67,27 +61,6 @@ export default function GoldSpinPage() {
       setError(msg);
     } finally {
       setBuying(false);
-    }
-  }
-
-  async function handleRedeemCoins() {
-    if (redeeming || buying) return;
-    if (!canAffordWithCoins) {
-      setError(`You need ${goldSpinCoinCost} coins. You have ${userCoins}.`);
-      return;
-    }
-    setRedeeming(true);
-    setError("");
-    try {
-      const res = await api.post<{ coins: number; goldCredits: number; message: string }>("/spin/redeem-coins/gold");
-      setUserCoins(res.data.coins ?? 0);
-      setGoldCredits(res.data.goldCredits ?? 0);
-      refreshUser();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Redeem failed.";
-      setError(msg);
-    } finally {
-      setRedeeming(false);
     }
   }
 
@@ -292,20 +265,6 @@ export default function GoldSpinPage() {
                   Deposit Rs {need.toFixed(0)} more to unlock
                 </div>
               )}
-              <button
-                onClick={handleRedeemCoins}
-                disabled={redeeming || !canAffordWithCoins}
-                style={{
-                  width: "100%", marginTop: 10, padding: "12px 0", borderRadius: 14,
-                  background: canAffordWithCoins ? "rgba(160,184,255,0.12)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${canAffordWithCoins ? "rgba(160,184,255,0.3)" : "rgba(255,255,255,0.08)"}`,
-                  cursor: canAffordWithCoins ? "pointer" : "default",
-                  fontSize: 13, fontWeight: 700,
-                  color: canAffordWithCoins ? "#a0b8ff" : "rgba(245,242,234,0.35)",
-                }}
-              >
-                {redeeming ? "Redeeming…" : `🪙 Or redeem ${goldSpinCoinCost} coins (${userCoins} available)`}
-              </button>
             </>
           )}
         </div>
