@@ -18,7 +18,9 @@ export function HelpVideoThumb({ video, onClick }: { video: HelpVideo; onClick: 
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumbUrl} alt={video.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : isUploadedFile ? (
-          <video src={video.videoUrl} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          // #t=0.1 forces the browser to seek to (and paint) a frame just past
+          // the start, since preload="metadata" alone doesn't reliably show one.
+          <video src={`${video.videoUrl}#t=0.1`} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,200,117,0.06)" }}>
             <PlayCircle size={22} style={{ color: "rgba(0,200,117,0.4)" }} />
