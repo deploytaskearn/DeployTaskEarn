@@ -172,6 +172,9 @@ export interface SpinInfo {
   goldCredits?: number;
   walletBalance: number;
   freeSpinTestMode?: boolean;
+  freeSpinCoinCost?: number;
+  goldSpinCoinCost?: number;
+  userCoins?: number;
 }
 
 export interface SpinResult {

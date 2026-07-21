@@ -17,6 +17,27 @@ async function getFreeSpinTestMode() {
   return false;
 }
 
+async function getFreeSpinCoinCost() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='free_spin_coin_cost' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseInt(r.rows[0].value);
+  } catch {}
+  return 300;
+}
+
+async function getGoldSpinCoinCost() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='gold_spin_coin_cost' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseInt(r.rows[0].value);
+  } catch {}
+  return 800;
+}
+
+async function getUserCoins(userId) {
+  const r = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [userId]);
+  return r.rows.length ? r.rows[0].coins : 0;
+}
+
 async function getSecondsUntilNextSpin(userId) {
   const last = await pool.query(
     `SELECT "spunAt" FROM "UserSpin" WHERE "userId"=$1 ORDER BY "spunAt" DESC LIMIT 1`,
@@ -91,6 +112,9 @@ async function getSpinInfo(req, res) {
 
     const goldSpinPrice = await getGoldSpinPrice();
     const goldCredits = await countAvailableGoldCredits(userId);
+    const freeSpinCoinCost = await getFreeSpinCoinCost();
+    const goldSpinCoinCost = await getGoldSpinCoinCost();
+    const userCoins = await getUserCoins(userId);
 
     res.json({
       segments: segs.rows,
@@ -103,6 +127,9 @@ async function getSpinInfo(req, res) {
       goldCredits,
       walletBalance,
       freeSpinTestMode: testMode,
+      freeSpinCoinCost,
+      goldSpinCoinCost,
+      userCoins,
     });
   } catch (err) {
     console.error('getSpinInfo:', err);
@@ -263,6 +290,46 @@ async function spinGold(req, res) {
   }
 }
 
+// Spend coins for an extra free-wheel spin (banked as a UserBonusSpin, same as winning "+1 Spin").
+async function redeemCoinsForFreeSpin(req, res) {
+  try {
+    const userId = req.user.id;
+    const cost = await getFreeSpinCoinCost();
+    const coins = await getUserCoins(userId);
+    if (coins < cost) {
+      return res.status(422).json({ error: `You need ${cost} coins. You have ${coins}.` });
+    }
+
+    await pool.query(`UPDATE "UserCoin" SET coins = coins - $1, "updatedAt" = now() WHERE "userId" = $2`, [cost, userId]);
+    await pool.query(`INSERT INTO "UserBonusSpin" ("userId") VALUES ($1)`, [userId]);
+
+    res.json({ coins: coins - cost, message: 'Redeemed! You have an extra free spin.' });
+  } catch (err) {
+    console.error('redeemCoinsForFreeSpin:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Spend coins for a gold-wheel spin credit (same banked credit as buying with wallet money).
+async function redeemCoinsForGoldSpin(req, res) {
+  try {
+    const userId = req.user.id;
+    const cost = await getGoldSpinCoinCost();
+    const coins = await getUserCoins(userId);
+    if (coins < cost) {
+      return res.status(422).json({ error: `You need ${cost} coins. You have ${coins}.` });
+    }
+
+    await pool.query(`UPDATE "UserCoin" SET coins = coins - $1, "updatedAt" = now() WHERE "userId" = $2`, [cost, userId]);
+    await pool.query(`INSERT INTO "UserGoldSpinCredit" ("userId", source) VALUES ($1, 'COIN_REDEEM')`, [userId]);
+
+    res.json({ coins: coins - cost, goldCredits: await countAvailableGoldCredits(userId), message: 'Redeemed! You have a gold spin ready.' });
+  } catch (err) {
+    console.error('redeemCoinsForGoldSpin:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 async function redeemCode(req, res) {
   try {
     const userId = req.user.id;
@@ -365,18 +432,20 @@ async function adminDeleteCode(req, res) {
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
-// Admin — spin config (gold spin price, free spin test mode)
+// Admin — spin config (gold spin price, free spin test mode, coin redeem costs)
 async function adminGetSpinConfig(req, res) {
   try {
     const price = await getGoldSpinPrice();
     const freeSpinTestMode = await getFreeSpinTestMode();
-    res.json({ goldSpinPrice: price, freeSpinTestMode });
+    const freeSpinCoinCost = await getFreeSpinCoinCost();
+    const goldSpinCoinCost = await getGoldSpinCoinCost();
+    res.json({ goldSpinPrice: price, freeSpinTestMode, freeSpinCoinCost, goldSpinCoinCost });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 async function adminSetSpinConfig(req, res) {
   try {
-    const { goldSpinPrice, freeSpinTestMode } = req.body;
+    const { goldSpinPrice, freeSpinTestMode, freeSpinCoinCost, goldSpinCoinCost } = req.body;
 
     if (goldSpinPrice !== undefined) {
       if (isNaN(parseFloat(goldSpinPrice))) {
@@ -397,14 +466,39 @@ async function adminSetSpinConfig(req, res) {
       );
     }
 
+    if (freeSpinCoinCost !== undefined) {
+      if (isNaN(parseInt(freeSpinCoinCost))) return res.status(400).json({ error: 'freeSpinCoinCost must be a number' });
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('free_spin_coin_cost', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [String(parseInt(freeSpinCoinCost))]
+      );
+    }
+
+    if (goldSpinCoinCost !== undefined) {
+      if (isNaN(parseInt(goldSpinCoinCost))) return res.status(400).json({ error: 'goldSpinCoinCost must be a number' });
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('gold_spin_coin_cost', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [String(parseInt(goldSpinCoinCost))]
+      );
+    }
+
     const price = await getGoldSpinPrice();
     const testMode = await getFreeSpinTestMode();
-    res.json({ ok: true, goldSpinPrice: price, freeSpinTestMode: testMode });
+    res.json({
+      ok: true,
+      goldSpinPrice: price,
+      freeSpinTestMode: testMode,
+      freeSpinCoinCost: await getFreeSpinCoinCost(),
+      goldSpinCoinCost: await getGoldSpinCoinCost(),
+    });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 module.exports = {
   getSpinInfo, spin, buyGoldSpin, spinGold, grantBonusSpin, redeemCode,
+  redeemCoinsForFreeSpin, redeemCoinsForGoldSpin,
   adminGetSegments, adminUpsertSegment, adminDeleteSegment,
   adminGetGoldSegments, adminUpsertGoldSegment, adminDeleteGoldSegment,
   adminGetCodes, adminCreateCode, adminToggleCode, adminDeleteCode,

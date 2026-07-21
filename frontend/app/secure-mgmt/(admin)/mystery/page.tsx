@@ -155,6 +155,9 @@ export default function AdminMysteryPage() {
   const [configMsg, setConfigMsg] = useState("");
   const [freeTestMode, setFreeTestMode] = useState(false);
   const [savingTestMode, setSavingTestMode] = useState(false);
+  const [freeBoxCoinCost, setFreeBoxCoinCost] = useState("");
+  const [savingCoinCost, setSavingCoinCost] = useState(false);
+  const [coinCostMsg, setCoinCostMsg] = useState("");
 
   // Modal
   const [modal, setModal] = useState<{ form: PrizeForm; type: "free" | "premium" } | null>(null);
@@ -172,10 +175,23 @@ export default function AdminMysteryPage() {
   }
   async function fetchConfig() {
     try {
-      const r = await api.get<{ premiumBoxPrice: number; freeMysteryBoxTestMode: boolean }>("/admin/mystery/config");
+      const r = await api.get<{ premiumBoxPrice: number; freeMysteryBoxTestMode: boolean; freeBoxCoinCost: number }>("/admin/mystery/config");
       setPremiumBoxPrice(String(r.data.premiumBoxPrice));
       setFreeTestMode(!!r.data.freeMysteryBoxTestMode);
+      setFreeBoxCoinCost(String(r.data.freeBoxCoinCost ?? 300));
     } catch {}
+  }
+
+  async function saveCoinCost(e: React.FormEvent) {
+    e.preventDefault();
+    const cost = parseInt(freeBoxCoinCost);
+    if (isNaN(cost) || cost <= 0) return setCoinCostMsg("Enter a valid coin amount.");
+    setSavingCoinCost(true); setCoinCostMsg("");
+    try {
+      await api.post("/admin/mystery/config", { freeBoxCoinCost: cost });
+      setCoinCostMsg("Saved!");
+    } catch { setCoinCostMsg("Save failed."); }
+    finally { setSavingCoinCost(false); }
   }
 
   async function toggleTestMode() {
@@ -312,6 +328,34 @@ export default function AdminMysteryPage() {
               <button type="submit" disabled={savingConfig}
                 style={{ width: "100%", padding: "12px 0", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: savingConfig ? 0.6 : 1 }}>
                 {savingConfig ? "Saving…" : "Save Price"}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginTop: 20, padding: 24, borderRadius: 18, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 18 }}>🪙</span>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA" }}>Free Box Coin Redeem Cost</h3>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginBottom: 20, lineHeight: 1.6 }}>
+              How many coins a user spends to open the Free Mystery Box instantly (bypassing the 24h cooldown), instead of wallet money. Premium Box is wallet-only.
+            </p>
+            <form onSubmit={saveCoinCost} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,242,234,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                  Coins
+                </label>
+                <input
+                  type="number" min="1" value={freeBoxCoinCost} onChange={e => setFreeBoxCoinCost(e.target.value)} placeholder="300"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#F5F2EA", fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              {coinCostMsg && (
+                <div style={{ fontSize: 13, color: coinCostMsg === "Saved!" ? "#00C875" : "#E8633A" }}>{coinCostMsg}</div>
+              )}
+              <button type="submit" disabled={savingCoinCost}
+                style={{ padding: "12px 0", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: savingCoinCost ? 0.6 : 1 }}>
+                {savingCoinCost ? "Saving…" : "Save Coin Cost"}
               </button>
             </form>
           </div>

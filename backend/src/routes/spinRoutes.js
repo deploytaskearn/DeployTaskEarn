@@ -8,5 +8,7 @@ router.post('/spin', requireAuth, ctrl.spin);
 router.post('/buy-gold-spin', requireAuth, ctrl.buyGoldSpin);
 router.post('/gold-spin', requireAuth, ctrl.spinGold);
 router.post('/redeem', requireAuth, ctrl.redeemCode);
+router.post('/redeem-coins/free', requireAuth, ctrl.redeemCoinsForFreeSpin);
+router.post('/redeem-coins/gold', requireAuth, ctrl.redeemCoinsForGoldSpin);
 
 module.exports = router;

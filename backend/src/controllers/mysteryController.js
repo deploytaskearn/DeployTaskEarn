@@ -19,6 +19,30 @@ async function getFreeMysteryBoxTestMode() {
   return false;
 }
 
+async function getFreeBoxCoinCost() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='free_box_coin_cost' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseInt(r.rows[0].value);
+  } catch {}
+  return 300;
+}
+
+async function getUserCoins(userId) {
+  const r = await pool.query(`SELECT coins FROM "UserCoin" WHERE "userId"=$1`, [userId]);
+  return r.rows.length ? r.rows[0].coins : 0;
+}
+
+function drawPrize(rows) {
+  const totalW = rows.reduce((s, r) => s + parseFloat(r.weight), 0);
+  let rand = Math.random() * totalW;
+  let winner = rows[0];
+  for (const p of rows) {
+    rand -= parseFloat(p.weight);
+    if (rand <= 0) { winner = p; break; }
+  }
+  return winner;
+}
+
 async function getSecondsUntilNextPlay(userId) {
   const last = await pool.query(
     `SELECT "playedAt" FROM "UserMysteryBoxPlay" WHERE "userId"=$1 ORDER BY "playedAt" DESC LIMIT 1`,
@@ -57,6 +81,8 @@ async function getInfo(req, res) {
     const wb = await walletService.getBalance(userId);
     const walletBalance = parseFloat(wb.balance ?? 0);
     const premiumBoxPrice = await getPremiumBoxPrice();
+    const freeBoxCoinCost = await getFreeBoxCoinCost();
+    const userCoins = await getUserCoins(userId);
 
     res.json({
       prizes: prizes.rows,
@@ -67,6 +93,8 @@ async function getInfo(req, res) {
       premiumPrizes: premiumPrizes.rows,
       premiumBoxPrice,
       walletBalance,
+      freeBoxCoinCost,
+      userCoins,
     });
   } catch (err) {
     console.error('mystery getInfo:', err);
@@ -99,14 +127,7 @@ async function openBox(req, res) {
       `SELECT * FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`
     );
     if (!prizes.rows.length) return res.status(422).json({ error: 'No prizes configured.' });
-
-    const totalW = prizes.rows.reduce((s, r) => s + parseFloat(r.weight), 0);
-    let rand = Math.random() * totalW;
-    let winner = prizes.rows[0];
-    for (const p of prizes.rows) {
-      rand -= parseFloat(p.weight);
-      if (rand <= 0) { winner = p; break; }
-    }
+    const winner = drawPrize(prizes.rows);
 
     if (parseFloat(winner.rewardAmount) > 0) {
       await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Free mystery box: ${winner.label}`);
@@ -127,6 +148,41 @@ async function openBox(req, res) {
     });
   } catch (err) {
     console.error('mystery openBox:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Spend coins to open a free mystery box immediately, bypassing the 24h cooldown.
+async function redeemCoinsForFreeBox(req, res) {
+  try {
+    const userId = req.user.id;
+    const cost = await getFreeBoxCoinCost();
+    const coins = await getUserCoins(userId);
+    if (coins < cost) {
+      return res.status(422).json({ error: `You need ${cost} coins. You have ${coins}.` });
+    }
+
+    const prizes = await pool.query(`SELECT * FROM "MysteryBoxPrize" WHERE "isActive"=true ORDER BY "sortOrder"`);
+    if (!prizes.rows.length) return res.status(422).json({ error: 'No prizes configured.' });
+    const winner = drawPrize(prizes.rows);
+
+    await pool.query(`UPDATE "UserCoin" SET coins = coins - $1, "updatedAt" = now() WHERE "userId" = $2`, [cost, userId]);
+
+    if (parseFloat(winner.rewardAmount) > 0) {
+      await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Free mystery box (coin redeem): ${winner.label}`);
+    }
+
+    await pool.query(
+      `INSERT INTO "UserMysteryBoxPlay" ("userId","prizeId","rewardAmount") VALUES ($1,$2,$3)`,
+      [userId, winner.id, winner.rewardAmount]
+    );
+
+    res.json({
+      prize: { id: winner.id, label: winner.label, rewardAmount: winner.rewardAmount },
+      coins: coins - cost,
+    });
+  } catch (err) {
+    console.error('mystery redeemCoinsForFreeBox:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -161,13 +217,7 @@ async function buyAndOpenPremium(req, res) {
       return res.status(422).json({ error: 'Premium prizes not configured yet.' });
     }
 
-    const totalW = allPrizes.reduce((s, r) => s + parseFloat(r.weight), 0);
-    let rand = Math.random() * totalW;
-    let winner = allPrizes[0];
-    for (const p of allPrizes) {
-      rand -= parseFloat(p.weight);
-      if (rand <= 0) { winner = p; break; }
-    }
+    const winner = drawPrize(allPrizes);
 
     if (parseFloat(winner.rewardAmount) > 0) {
       await walletService.credit(userId, parseFloat(winner.rewardAmount), 'MYSTERY_BOX', winner.id, `Premium mystery box: ${winner.label}`);
@@ -234,13 +284,14 @@ async function adminGetConfig(req, res) {
   try {
     const price = await getPremiumBoxPrice();
     const freeMysteryBoxTestMode = await getFreeMysteryBoxTestMode();
-    res.json({ premiumBoxPrice: price, freeMysteryBoxTestMode });
+    const freeBoxCoinCost = await getFreeBoxCoinCost();
+    res.json({ premiumBoxPrice: price, freeMysteryBoxTestMode, freeBoxCoinCost });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 async function adminSetConfig(req, res) {
   try {
-    const { premiumBoxPrice, freeMysteryBoxTestMode } = req.body;
+    const { premiumBoxPrice, freeMysteryBoxTestMode, freeBoxCoinCost } = req.body;
 
     if (premiumBoxPrice !== undefined) {
       if (isNaN(parseFloat(premiumBoxPrice))) {
@@ -261,14 +312,28 @@ async function adminSetConfig(req, res) {
       );
     }
 
+    if (freeBoxCoinCost !== undefined) {
+      if (isNaN(parseInt(freeBoxCoinCost))) return res.status(400).json({ error: 'freeBoxCoinCost must be a number' });
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('free_box_coin_cost', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value=$1, "updatedAt"=now()`,
+        [String(parseInt(freeBoxCoinCost))]
+      );
+    }
+
     const price = await getPremiumBoxPrice();
     const testMode = await getFreeMysteryBoxTestMode();
-    res.json({ ok: true, premiumBoxPrice: price, freeMysteryBoxTestMode: testMode });
+    res.json({
+      ok: true,
+      premiumBoxPrice: price,
+      freeMysteryBoxTestMode: testMode,
+      freeBoxCoinCost: await getFreeBoxCoinCost(),
+    });
   } catch (err) { res.status(500).json({ error: 'Internal server error' }); }
 }
 
 module.exports = {
-  getInfo, openBox, buyAndOpenPremium,
+  getInfo, openBox, buyAndOpenPremium, redeemCoinsForFreeBox,
   adminGetPrizes, adminUpsertPrize, adminDeletePrize,
   adminGetPremiumPrizes, adminUpsertPremiumPrize, adminDeletePremiumPrize,
   adminGetConfig, adminSetConfig,

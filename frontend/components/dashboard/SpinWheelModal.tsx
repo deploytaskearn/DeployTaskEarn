@@ -32,6 +32,8 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
   const prevFreeRot = useRef(0);
 
   const [error, setError] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState("");
 
   const freeCountdown = useCountdown(secondsUntilSpin);
 
@@ -92,6 +94,24 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
     router.push("/dashboard/gold-spin");
   }
 
+  async function handleRedeemCoins() {
+    if (redeeming) return;
+    setRedeeming(true);
+    setError("");
+    setRedeemMsg("");
+    try {
+      const res = await api.post<{ coins: number; message: string }>("/spin/redeem-coins/free");
+      setRedeemMsg(res.data.message || "Redeemed!");
+      setInfo((prev) => (prev ? { ...prev, userCoins: res.data.coins, hasBonusSpin: true } : prev));
+      setCanSpin(true);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Redeem failed.";
+      setError(msg);
+    } finally {
+      setRedeeming(false);
+    }
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "radial-gradient(ellipse at 50% 20%, #0d3a1a 0%, #04100a 70%)", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto" }}>
 
@@ -148,6 +168,25 @@ export function SpinWheelModal({ onClose, onWin }: { onClose: () => void; onWin:
               <span style={{ fontSize: 11, color: "rgba(245,242,234,0.5)" }}>Next free spin in</span>
               <span style={{ fontSize: 14, fontWeight: 800, color: "#ffe066", fontFamily: "monospace" }}>{freeCountdown.label}</span>
             </div>
+          )}
+
+          {!freeSpinning && (() => {
+            const cost = info?.freeSpinCoinCost ?? 300;
+            const coins = info?.userCoins ?? 0;
+            const canAfford = coins >= cost;
+            return (
+              <button onClick={handleRedeemCoins} disabled={redeeming || !canAfford}
+                style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 99, background: canAfford ? "rgba(244,200,66,0.12)" : "rgba(255,255,255,0.05)", border: `1px solid ${canAfford ? "rgba(244,200,66,0.3)" : "rgba(255,255,255,0.08)"}`, cursor: canAfford ? "pointer" : "default", opacity: redeeming ? 0.6 : 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: canAfford ? "#F4C842" : "rgba(245,242,234,0.35)" }}>
+                  {redeeming ? "Redeeming…" : `🪙 Redeem ${cost} coins for +1 spin`}
+                </span>
+                <span style={{ fontSize: 10, color: "rgba(245,242,234,0.4)" }}>({coins} available)</span>
+              </button>
+            );
+          })()}
+
+          {redeemMsg && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#00C875", fontWeight: 600 }}>{redeemMsg}</div>
           )}
 
           {freeResult && (

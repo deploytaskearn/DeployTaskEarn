@@ -42,6 +42,10 @@ export default function AdminSpinPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingTestMode, setSavingTestMode] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
+  const [freeSpinCoinCost, setFreeSpinCoinCost] = useState("");
+  const [goldSpinCoinCost, setGoldSpinCoinCost] = useState("");
+  const [savingCoinCosts, setSavingCoinCosts] = useState(false);
+  const [coinCostMsg, setCoinCostMsg] = useState("");
 
   function loadAll() {
     setLoading(true);
@@ -57,8 +61,13 @@ export default function AdminSpinPage() {
 
   useEffect(() => {
     loadAll();
-    api.get<{ goldSpinPrice: number; freeSpinTestMode: boolean }>("/admin/spin/config")
-      .then(r => { setGoldSpinPrice(String(r.data.goldSpinPrice)); setFreeSpinTestMode(!!r.data.freeSpinTestMode); })
+    api.get<{ goldSpinPrice: number; freeSpinTestMode: boolean; freeSpinCoinCost: number; goldSpinCoinCost: number }>("/admin/spin/config")
+      .then(r => {
+        setGoldSpinPrice(String(r.data.goldSpinPrice));
+        setFreeSpinTestMode(!!r.data.freeSpinTestMode);
+        setFreeSpinCoinCost(String(r.data.freeSpinCoinCost ?? 300));
+        setGoldSpinCoinCost(String(r.data.goldSpinCoinCost ?? 800));
+      })
       .catch(() => {});
   }, []);
 
@@ -72,6 +81,19 @@ export default function AdminSpinPage() {
       setConfigMsg("Saved!");
     } catch { setConfigMsg("Save failed."); }
     finally { setSavingConfig(false); }
+  }
+
+  async function saveCoinCosts(e: React.FormEvent) {
+    e.preventDefault();
+    const free = parseInt(freeSpinCoinCost);
+    const gold = parseInt(goldSpinCoinCost);
+    if (isNaN(free) || free <= 0 || isNaN(gold) || gold <= 0) return setCoinCostMsg("Enter valid coin amounts.");
+    setSavingCoinCosts(true); setCoinCostMsg("");
+    try {
+      await api.post("/admin/spin/config", { freeSpinCoinCost: free, goldSpinCoinCost: gold });
+      setCoinCostMsg("Saved!");
+    } catch { setCoinCostMsg("Save failed."); }
+    finally { setSavingCoinCosts(false); }
   }
 
   async function toggleTestMode() {
@@ -179,6 +201,43 @@ export default function AdminSpinPage() {
               <button type="submit" disabled={savingConfig}
                 style={{ padding: "12px 0", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: savingConfig ? 0.6 : 1 }}>
                 {savingConfig ? "Saving…" : "Save Price"}
+              </button>
+            </form>
+          </div>
+
+          <div style={{ marginTop: 20, padding: 24, borderRadius: 18, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 18 }}>🪙</span>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "#F5F2EA" }}>Coin Redeem Costs</h3>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(245,242,234,0.45)", marginBottom: 20, lineHeight: 1.6 }}>
+              How many coins a user spends to redeem an extra free spin, or a gold spin credit, instead of using wallet money.
+            </p>
+            <form onSubmit={saveCoinCosts} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,242,234,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                  Free Spin (coins)
+                </label>
+                <input
+                  type="number" min="1" value={freeSpinCoinCost} onChange={e => setFreeSpinCoinCost(e.target.value)} placeholder="300"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#F5F2EA", fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(245,242,234,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                  Gold Spin (coins)
+                </label>
+                <input
+                  type="number" min="1" value={goldSpinCoinCost} onChange={e => setGoldSpinCoinCost(e.target.value)} placeholder="800"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#F5F2EA", fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              {coinCostMsg && (
+                <div style={{ fontSize: 13, color: coinCostMsg === "Saved!" ? "#00C875" : "#E8633A" }}>{coinCostMsg}</div>
+              )}
+              <button type="submit" disabled={savingCoinCosts}
+                style={{ padding: "12px 0", borderRadius: 12, background: "#00C875", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: savingCoinCosts ? 0.6 : 1 }}>
+                {savingCoinCosts ? "Saving…" : "Save Coin Costs"}
               </button>
             </form>
           </div>

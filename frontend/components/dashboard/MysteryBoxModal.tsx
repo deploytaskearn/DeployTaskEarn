@@ -16,12 +16,19 @@ interface MysteryInfo {
   premiumPrizes: Prize[];
   premiumBoxPrice: number;
   walletBalance: number;
+  freeBoxCoinCost?: number;
+  userCoins?: number;
 }
 
 interface OpenResult {
   prize: { id: string; label: string; rewardAmount: string };
   secondsUntilReset: number;
   canPlayAgain?: boolean;
+}
+
+interface RedeemCoinsResult {
+  prize: { id: string; label: string; rewardAmount: string };
+  coins: number;
 }
 
 
@@ -84,6 +91,7 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
   const [secondsUntilReset, setSecondsUntilReset] = useState(0);
   const freeCountdown = useCountdown(secondsUntilReset);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
     api.get<MysteryInfo>("/mystery/info")
@@ -118,6 +126,30 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to open.";
       setError(msg);
       setFreePhase("idle");
+    }
+  }
+
+  async function handleRedeemCoins() {
+    if (freePhase !== "idle" || redeeming) return;
+    setRedeeming(true);
+    setFreePhase("shaking");
+    setFreeResult(null);
+    setError("");
+    try {
+      const res = await api.post<RedeemCoinsResult>("/mystery/redeem-coins/free");
+      setTimeout(() => setFreePhase("opening"), 700);
+      setTimeout(() => {
+        setFreeResult({ prize: res.data.prize, secondsUntilReset: 0, canPlayAgain: canPlay });
+        setFreePhase("revealed");
+        setInfo((prev) => (prev ? { ...prev, userCoins: res.data.coins } : prev));
+        setRedeeming(false);
+        if (parseFloat(res.data.prize.rewardAmount) > 0) onWin();
+      }, 1500);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Redeem failed.";
+      setError(msg);
+      setFreePhase("idle");
+      setRedeeming(false);
     }
   }
 
@@ -178,6 +210,21 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
             </div>
           )}
 
+          {freePhase === "idle" && (() => {
+            const cost = info?.freeBoxCoinCost ?? 300;
+            const coins = info?.userCoins ?? 0;
+            const canAfford = coins >= cost;
+            return (
+              <button onClick={handleRedeemCoins} disabled={!canAfford}
+                style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 99, background: canAfford ? "rgba(244,200,66,0.12)" : "rgba(255,255,255,0.05)", border: `1px solid ${canAfford ? "rgba(244,200,66,0.3)" : "rgba(255,255,255,0.08)"}`, cursor: canAfford ? "pointer" : "default" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: canAfford ? "#F4C842" : "rgba(245,242,234,0.35)" }}>
+                  🪙 Or redeem {cost} coins to open now
+                </span>
+                <span style={{ fontSize: 10, color: "rgba(245,242,234,0.4)" }}>({coins} available)</span>
+              </button>
+            );
+          })()}
+
           {freeResult && freePhase === "revealed" && (
             <div style={{ marginTop: 14, padding: "18px 28px", borderRadius: 20, textAlign: "center", maxWidth: 280, background: freeReward > 0 ? "rgba(5,25,12,0.95)" : "rgba(5,10,8,0.95)", border: `2px solid ${freeReward > 0 ? "rgba(0,200,117,0.4)" : "rgba(255,255,255,0.1)"}`, animation: "resultPop 0.5s cubic-bezier(0.22,1,0.36,1)" }}>
               {freeReward > 0 ? (
@@ -227,7 +274,7 @@ export function MysteryBoxModal({ onClose, onWin }: { onClose: () => void; onWin
               </div>
               <div style={{ textAlign: "left" }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#ede9fe" }}>👑 Premium Box</div>
-                <div style={{ fontSize: 11, color: "rgba(196,181,253,0.6)", marginTop: 2 }}>Rs 300 · Win up to Rs 5,000</div>
+                <div style={{ fontSize: 11, color: "rgba(196,181,253,0.6)", marginTop: 2 }}>Rs {(info?.premiumBoxPrice ?? 500).toLocaleString()} · Win up to Rs 5,000</div>
               </div>
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#a855f7", whiteSpace: "nowrap" }}>Open →</div>
