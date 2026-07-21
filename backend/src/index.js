@@ -343,6 +343,7 @@ async function runMigrations() {
       "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
       "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
+    `ALTER TABLE "HelpVideo" ADD COLUMN IF NOT EXISTS "thumbnailUrl" TEXT`,
   ];
   for (const stmt of patches) {
     try {

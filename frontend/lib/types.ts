@@ -216,6 +216,7 @@ export interface HelpVideo {
   title: string;
   description?: string | null;
   videoUrl: string;
+  thumbnailUrl?: string | null;
   isActive?: boolean;
   sortOrder: number;
   createdAt?: string;

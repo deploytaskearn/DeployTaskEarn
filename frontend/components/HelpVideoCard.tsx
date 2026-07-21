@@ -9,7 +9,7 @@ const VIDEO_FILE_PATTERN = /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i;
 // Compact square thumbnail for tight grids (e.g. 3-up on the dashboard home).
 // Opens the video in a lightbox via onClick — never navigates away.
 export function HelpVideoThumb({ video, onClick }: { video: HelpVideo; onClick: () => void }) {
-  const thumbUrl = getYouTubeThumbnailUrl(video.videoUrl);
+  const thumbUrl = video.thumbnailUrl || getYouTubeThumbnailUrl(video.videoUrl);
   const isUploadedFile = !thumbUrl && VIDEO_FILE_PATTERN.test(video.videoUrl);
   return (
     <button onClick={onClick} style={{ display: "flex", flexDirection: "column", textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", minWidth: 0 }}>
@@ -56,7 +56,7 @@ export function HelpVideoCard({ video }: { video: HelpVideo }) {
         </div>
       ) : isUploadedFile ? (
         <div style={{ aspectRatio: "16/9", background: "#000" }}>
-          <video src={video.videoUrl} controls playsInline style={{ width: "100%", height: "100%" }} />
+          <video src={video.videoUrl} poster={video.thumbnailUrl || undefined} controls playsInline style={{ width: "100%", height: "100%" }} />
         </div>
       ) : (
         <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"

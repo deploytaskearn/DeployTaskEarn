@@ -5,7 +5,7 @@ import api from "@/lib/admin-api";
 import { HelpVideo } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
-import { Plus, Trash2, X, Check, Pencil, ToggleLeft, ToggleRight, UploadCloud } from "lucide-react";
+import { Plus, Trash2, X, Check, Pencil, ToggleLeft, ToggleRight, UploadCloud, PlayCircle } from "lucide-react";
 
 export default function AdminHelpVideosPage() {
   const [videos, setVideos] = useState<HelpVideo[]>([]);
@@ -135,11 +135,13 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
     title: video?.title ?? "",
     description: video?.description ?? "",
     videoUrl: video?.videoUrl ?? "",
+    thumbnailUrl: video?.thumbnailUrl ?? "",
     sortOrder: video ? String(video.sortOrder) : "0",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
 
   const embedUrl = getYouTubeEmbedUrl(form.videoUrl.trim());
   const isUploadedFile = !embedUrl && /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i.test(form.videoUrl.trim());
@@ -159,6 +161,21 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
     }
   }
 
+  async function handleThumbnailUpload(file: File) {
+    setUploadingThumb(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("logo", file);
+      const r = await api.post<{ url: string }>("/admin/upload/logo", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((f) => ({ ...f, thumbnailUrl: r.data.url }));
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Thumbnail upload failed.");
+    } finally {
+      setUploadingThumb(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -168,6 +185,7 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         videoUrl: form.videoUrl.trim(),
+        thumbnailUrl: form.thumbnailUrl.trim() || undefined,
         sortOrder: parseInt(form.sortOrder) || 0,
       };
       if (isEdit) {
@@ -246,6 +264,41 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
               <video src={form.videoUrl.trim()} controls className="w-full h-full" />
             </div>
           )}
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Thumbnail (optional)</span>
+            <div className="flex items-center gap-3">
+              {form.thumbnailUrl ? (
+                <div className="relative w-16 h-16 rounded-sm overflow-hidden shrink-0" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={form.thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, thumbnailUrl: "" }))}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.7)" }}>
+                    <X size={9} style={{ color: "#fff" }} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-sm flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.15)" }}>
+                  <PlayCircle size={18} style={{ color: "rgba(245,242,234,0.25)" }} />
+                </div>
+              )}
+              <label className="flex items-center gap-1.5 px-3 py-2.5 rounded-sm text-sm font-medium cursor-pointer"
+                style={{ background: "rgba(0,200,117,0.12)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
+                <UploadCloud size={14} />
+                {uploadingThumb ? "Uploading…" : form.thumbnailUrl ? "Change" : "Upload image"}
+                <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" className="hidden"
+                  disabled={uploadingThumb}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleThumbnailUpload(f); }} />
+              </label>
+            </div>
+            <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+              {form.videoUrl.includes("youtube.com") || form.videoUrl.includes("youtu.be")
+                ? "Optional — YouTube's own preview image is used if you skip this."
+                : "Shown as the preview picture instead of an auto-captured video frame."}
+            </span>
+          </label>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Sort Order</span>

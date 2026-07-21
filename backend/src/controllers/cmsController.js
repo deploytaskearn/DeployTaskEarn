@@ -229,6 +229,7 @@ const helpVideoSchema = z.object({
   title: z.string().min(2),
   description: z.string().optional(),
   videoUrl: z.string().url(),
+  thumbnailUrl: z.string().url().optional().nullable(),
   isActive: z.boolean().default(true),
   sortOrder: z.coerce.number().int().default(0),
 });
@@ -237,10 +238,10 @@ async function createHelpVideo(req, res) {
   try {
     const data = helpVideoSchema.parse(req.body);
     const result = await pool.query(
-      `INSERT INTO "HelpVideo" (id, title, description, "videoUrl", "isActive", "sortOrder", "createdAt", "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
+      `INSERT INTO "HelpVideo" (id, title, description, "videoUrl", "thumbnailUrl", "isActive", "sortOrder", "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, now(), now())
        RETURNING *`,
-      [data.title, data.description || null, data.videoUrl, data.isActive, data.sortOrder]
+      [data.title, data.description || null, data.videoUrl, data.thumbnailUrl || null, data.isActive, data.sortOrder]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
