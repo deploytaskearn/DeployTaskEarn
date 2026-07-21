@@ -4,8 +4,11 @@ import { PlayCircle } from "lucide-react";
 import { HelpVideo } from "@/lib/types";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 
+const VIDEO_FILE_PATTERN = /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i;
+
 export function HelpVideoCard({ video }: { video: HelpVideo }) {
   const embedUrl = getYouTubeEmbedUrl(video.videoUrl);
+  const isUploadedFile = !embedUrl && VIDEO_FILE_PATTERN.test(video.videoUrl);
   return (
     <div style={{ borderRadius: 20, overflow: "hidden", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
       {embedUrl ? (
@@ -17,6 +20,10 @@ export function HelpVideoCard({ video }: { video: HelpVideo }) {
             allowFullScreen
             style={{ width: "100%", height: "100%", border: "none" }}
           />
+        </div>
+      ) : isUploadedFile ? (
+        <div style={{ aspectRatio: "16/9", background: "#000" }}>
+          <video src={video.videoUrl} controls playsInline style={{ width: "100%", height: "100%" }} />
         </div>
       ) : (
         <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"

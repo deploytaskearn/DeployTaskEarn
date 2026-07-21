@@ -5,7 +5,7 @@ import api from "@/lib/admin-api";
 import { HelpVideo } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
-import { Plus, Trash2, X, Check, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Trash2, X, Check, Pencil, ToggleLeft, ToggleRight, UploadCloud } from "lucide-react";
 
 export default function AdminHelpVideosPage() {
   const [videos, setVideos] = useState<HelpVideo[]>([]);
@@ -139,8 +139,25 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const embedUrl = getYouTubeEmbedUrl(form.videoUrl.trim());
+  const isUploadedFile = !embedUrl && /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i.test(form.videoUrl.trim());
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("video", file);
+      const r = await api.post<{ url: string }>("/admin/upload/video", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((f) => ({ ...f, videoUrl: r.data.url }));
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Upload failed. Try a smaller file.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -199,18 +216,34 @@ function VideoModal({ video, onClose, onSaved }: { video?: HelpVideo; onClose: (
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>YouTube URL *</span>
-            <input required type="url" value={form.videoUrl} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
-              placeholder="https://www.youtube.com/watch?v=…"
-              className="px-3 py-2.5 rounded-sm text-sm" style={inp} />
-            {form.videoUrl.trim() && !embedUrl && (
-              <span className="text-xs" style={{ color: "var(--color-alert)" }}>Doesn&apos;t look like a valid YouTube link.</span>
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Video source *</span>
+            <div className="flex gap-2">
+              <input required type="text" value={form.videoUrl} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                placeholder="https://www.youtube.com/watch?v=… or upload a file"
+                className="flex-1 px-3 py-2.5 rounded-sm text-sm" style={inp} />
+              <label className="flex items-center gap-1.5 px-3 py-2.5 rounded-sm text-sm font-medium cursor-pointer shrink-0"
+                style={{ background: "rgba(0,200,117,0.12)", color: "#00C875", border: "1px solid rgba(0,200,117,0.25)" }}>
+                <UploadCloud size={14} />
+                {uploading ? "Uploading…" : "Upload"}
+                <input type="file" accept="video/mp4,video/webm,video/quicktime,video/ogg,.mp4,.webm,.mov,.ogg,.m4v" className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
+              </label>
+            </div>
+            <span className="text-xs" style={{ color: "var(--color-muted)" }}>Paste a YouTube link, or click Upload to add a video file directly (MP4/WEBM/MOV, up to 150MB).</span>
+            {form.videoUrl.trim() && !embedUrl && !isUploadedFile && (
+              <span className="text-xs" style={{ color: "var(--color-alert)" }}>Doesn&apos;t look like a YouTube link or an uploaded video file.</span>
             )}
           </label>
 
           {embedUrl && (
             <div className="rounded-sm overflow-hidden" style={{ aspectRatio: "16/9" }}>
               <iframe src={embedUrl} className="w-full h-full" allowFullScreen title="Preview" />
+            </div>
+          )}
+          {isUploadedFile && (
+            <div className="rounded-sm overflow-hidden" style={{ aspectRatio: "16/9", background: "#000" }}>
+              <video src={form.videoUrl.trim()} controls className="w-full h-full" />
             </div>
           )}
 
