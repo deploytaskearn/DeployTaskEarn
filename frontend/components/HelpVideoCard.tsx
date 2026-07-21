@@ -2,9 +2,38 @@
 
 import { PlayCircle } from "lucide-react";
 import { HelpVideo } from "@/lib/types";
-import { getYouTubeEmbedUrl } from "@/lib/youtube";
+import { getYouTubeEmbedUrl, getYouTubeThumbnailUrl } from "@/lib/youtube";
 
 const VIDEO_FILE_PATTERN = /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i;
+
+// Compact square thumbnail for tight grids (e.g. 3-up on the dashboard home).
+// Always links out rather than embedding — a live iframe/video at this size
+// isn't usable anyway.
+export function HelpVideoThumb({ video, onClick }: { video: HelpVideo; onClick: () => void }) {
+  const thumbUrl = getYouTubeThumbnailUrl(video.videoUrl);
+  return (
+    <button onClick={onClick} className="flex flex-col text-left" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+      <div style={{ position: "relative", aspectRatio: "1/1", borderRadius: 14, overflow: "hidden", background: "#0a1a12", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {thumbUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbUrl} alt={video.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,200,117,0.06)" }}>
+            <PlayCircle size={22} style={{ color: "rgba(0,200,117,0.4)" }} />
+          </div>
+        )}
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <PlayCircle size={18} style={{ color: "#fff" }} />
+          </div>
+        </div>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(245,242,234,0.75)", marginTop: 6, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+        {video.title}
+      </div>
+    </button>
+  );
+}
 
 export function HelpVideoCard({ video }: { video: HelpVideo }) {
   const embedUrl = getYouTubeEmbedUrl(video.videoUrl);

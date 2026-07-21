@@ -12,7 +12,7 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
-import { HelpVideoCard } from "@/components/HelpVideoCard";
+import { HelpVideoThumb } from "@/components/HelpVideoCard";
 
 type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
@@ -404,15 +404,15 @@ export default function DashboardPage() {
                   <PlayCircle size={15} style={{ color: "#00C875" }} />
                   <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(245,242,234,0.5)" }}>Help & Tutorials</span>
                 </div>
-                {helpVideos.length > 2 && (
+                {helpVideos.length > 3 && (
                   <button onClick={() => router.push("/dashboard/help")} className="text-xs font-semibold" style={{ color: "#00C875" }}>
                     See all ›
                   </button>
                 )}
               </div>
-              <div className="flex flex-col gap-4">
-                {helpVideos.slice(0, 2).map((v) => (
-                  <HelpVideoCard key={v.id} video={v} />
+              <div className="grid grid-cols-3 gap-2.5">
+                {helpVideos.slice(0, 3).map((v) => (
+                  <HelpVideoThumb key={v.id} video={v} onClick={() => router.push("/dashboard/help")} />
                 ))}
               </div>
             </div>
