@@ -205,7 +205,7 @@ async function updateSetting(req, res) {
 async function listHelpVideos(req, res) {
   try {
     const result = await pool.query(
-      `SELECT id, title, description, "videoUrl", "sortOrder" FROM "HelpVideo"
+      `SELECT id, title, description, "videoUrl", "thumbnailUrl", "sortOrder" FROM "HelpVideo"
        WHERE "isActive" = true ORDER BY "sortOrder" ASC, "createdAt" ASC`
     );
     res.json(result.rows);
