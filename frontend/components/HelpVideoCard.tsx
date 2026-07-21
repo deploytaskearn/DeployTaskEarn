@@ -12,8 +12,8 @@ const VIDEO_FILE_PATTERN = /\.(mp4|webm|mov|ogg|m4v)(\?|$)/i;
 export function HelpVideoThumb({ video, onClick }: { video: HelpVideo; onClick: () => void }) {
   const thumbUrl = getYouTubeThumbnailUrl(video.videoUrl);
   return (
-    <button onClick={onClick} className="flex flex-col text-left" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-      <div style={{ position: "relative", aspectRatio: "1/1", borderRadius: 14, overflow: "hidden", background: "#0a1a12", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <button onClick={onClick} style={{ display: "flex", flexDirection: "column", textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%", minWidth: 0 }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", borderRadius: 14, overflow: "hidden", background: "#0a1a12", border: "1px solid rgba(255,255,255,0.08)" }}>
         {thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumbUrl} alt={video.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />

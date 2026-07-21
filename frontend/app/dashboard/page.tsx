@@ -410,7 +410,7 @@ export default function DashboardPage() {
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-2.5">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                 {helpVideos.slice(0, 3).map((v) => (
                   <HelpVideoThumb key={v.id} video={v} onClick={() => router.push("/dashboard/help")} />
                 ))}
