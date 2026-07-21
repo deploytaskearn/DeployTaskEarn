@@ -7,11 +7,12 @@ import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
 import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck } from "lucide-react";
-import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
+import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal, HelpVideo } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
+import { HelpVideoCard } from "@/components/HelpVideoCard";
 
 type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
@@ -47,6 +48,7 @@ export default function DashboardPage() {
     bonuses: { id: string; amount: string; createdAt: string; referredUserName: string; planName: string }[];
   } | null>(null);
   const [referralDetailsLoading, setReferralDetailsLoading] = useState(false);
+  const [helpVideos, setHelpVideos] = useState<HelpVideo[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,6 +71,7 @@ export default function DashboardPage() {
     api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
     // Fetch fresh wallet balance from server (auth context balance can be stale)
     api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
+    api.get<HelpVideo[]>("/cms/help-videos").then((r) => setHelpVideos(r.data ?? [])).catch(() => {});
   }, [user]);
 
   function refreshBalance() {
@@ -392,6 +395,28 @@ export default function DashboardPage() {
               View plans ›
             </button>
           </div>
+
+          {/* Help videos */}
+          {helpVideos.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div className="flex items-center gap-2">
+                  <PlayCircle size={15} style={{ color: "#00C875" }} />
+                  <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(245,242,234,0.5)" }}>Help & Tutorials</span>
+                </div>
+                {helpVideos.length > 2 && (
+                  <button onClick={() => router.push("/dashboard/help")} className="text-xs font-semibold" style={{ color: "#00C875" }}>
+                    See all ›
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-4">
+                {helpVideos.slice(0, 2).map((v) => (
+                  <HelpVideoCard key={v.id} video={v} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* History card */}
           <div className="mt-4 rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
