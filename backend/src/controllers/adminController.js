@@ -400,6 +400,43 @@ async function reviewSubmission(req, res) {
   }
 }
 
+// ───────────── NOTIFICATIONS ─────────────
+
+async function listNotifications(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM "AdminNotification" ORDER BY "createdAt" DESC LIMIT 50`
+    );
+    const unread = await pool.query(
+      `SELECT COUNT(*) FROM "AdminNotification" WHERE "isRead" = false`
+    );
+    res.json({ notifications: result.rows, unreadCount: parseInt(unread.rows[0].count) });
+  } catch (err) {
+    console.error('listNotifications error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function markNotificationRead(req, res) {
+  try {
+    await pool.query('UPDATE "AdminNotification" SET "isRead" = true WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('markNotificationRead error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function markAllNotificationsRead(req, res) {
+  try {
+    await pool.query('UPDATE "AdminNotification" SET "isRead" = true WHERE "isRead" = false');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('markAllNotificationsRead error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 module.exports = {
   dashboardStats,
   listUsers,
@@ -414,4 +451,7 @@ module.exports = {
   listAllTasksAdmin,
   listSubmissions,
   reviewSubmission,
+  listNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 };

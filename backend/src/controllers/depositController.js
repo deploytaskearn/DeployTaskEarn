@@ -42,12 +42,10 @@ async function createDeposit(req, res) {
     );
 
     notifyAdmin(
+      'DEPOSIT',
       `New deposit request — Rs ${data.amount}`,
-      `<p>A new deposit request needs review.</p>
-       <p><b>Amount:</b> Rs ${data.amount}<br/>
-       <b>Method:</b> ${data.method}<br/>
-       <b>User:</b> ${req.user.email}</p>
-       <p>Review it in the admin panel under Deposits.</p>`
+      `${req.user.email} via ${data.method}`,
+      '/deposits'
     );
 
     res.status(201).json(result.rows[0]);

@@ -50,13 +50,10 @@ async function createWithdrawal(req, res) {
     }
 
     notifyAdmin(
+      'WITHDRAWAL',
       `New withdrawal request — Rs ${data.amount}`,
-      `<p>A new withdrawal request needs review.</p>
-       <p><b>Amount:</b> Rs ${data.amount}<br/>
-       <b>Method:</b> ${data.method}<br/>
-       <b>Account:</b> ${data.accountName} — ${data.accountNumber}<br/>
-       <b>User:</b> ${req.user.email}</p>
-       <p>Review it in the admin panel under Withdrawals.</p>`
+      `${req.user.email} via ${data.method} — ${data.accountName} (${data.accountNumber})`,
+      '/withdrawals'
     );
 
     res.status(201).json(withdrawal.rows[0]);

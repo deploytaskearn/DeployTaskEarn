@@ -344,6 +344,17 @@ async function runMigrations() {
       "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `ALTER TABLE "HelpVideo" ADD COLUMN IF NOT EXISTS "thumbnailUrl" TEXT`,
+    `CREATE TABLE IF NOT EXISTS "AdminNotification" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT,
+      link TEXT,
+      "isRead" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "AdminNotification_isRead_idx" ON "AdminNotification"("isRead")`,
+    `CREATE INDEX IF NOT EXISTS "AdminNotification_createdAt_idx" ON "AdminNotification"("createdAt")`,
   ];
   for (const stmt of patches) {
     try {

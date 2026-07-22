@@ -27,7 +27,6 @@ const TEXT_FIELDS = [
   { key: "site_min_withdrawal", label: "Min withdrawal (₨)", placeholder: "500" },
   { key: "whatsapp_number", label: "WhatsApp number (country code, no +)", placeholder: "923001234567" },
   { key: "whatsapp_group_link", label: "WhatsApp group invite link", placeholder: "https://chat.whatsapp.com/…" },
-  { key: "admin_notification_email", label: "Notify this email on new deposits/withdrawals/submissions", placeholder: "help.taskearn@gmail.com" },
 ];
 
 async function saveSetting(key: string, value: string) {

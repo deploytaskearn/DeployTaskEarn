@@ -11,6 +11,10 @@ router.use(requireAuth, requireAdmin);
 
 router.get('/dashboard-stats', adminController.dashboardStats);
 
+router.get('/notifications', adminController.listNotifications);
+router.post('/notifications/:id/read', adminController.markNotificationRead);
+router.post('/notifications/read-all', adminController.markAllNotificationsRead);
+
 router.get('/users', adminController.listUsers);
 router.delete('/users/:id', adminController.deleteUser);
 router.patch('/users/:id/status', adminController.updateUserStatus);

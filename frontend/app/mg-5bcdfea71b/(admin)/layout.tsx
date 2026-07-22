@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAdminAuth } from "@/lib/admin-auth-context";
+import { NotificationBell } from "@/components/admin/NotificationBell";
 import {
   LayoutDashboard,
   Banknote,
@@ -98,9 +99,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         className="w-64 shrink-0 hidden md:flex flex-col py-6 px-4"
         style={{ borderRight: "1px solid rgba(245,242,234,0.1)" }}
       >
-        <Link href="/mg-5bcdfea71b" className="font-display text-xl mb-8 px-2" style={{ color: "var(--color-surface)" }}>
-          TaskEarn <span style={{ color: "var(--color-accent)" }}>Admin</span>
-        </Link>
+        <div className="flex items-center justify-between mb-8 px-2">
+          <Link href="/mg-5bcdfea71b" className="font-display text-xl" style={{ color: "var(--color-surface)" }}>
+            TaskEarn <span style={{ color: "var(--color-accent)" }}>Admin</span>
+          </Link>
+          <NotificationBell />
+        </div>
         <nav className="flex flex-col gap-1 flex-1">
           <NavLinks />
         </nav>
@@ -121,13 +125,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span className="font-display text-base" style={{ color: "var(--color-surface)" }}>
           TaskEarn <span style={{ color: "var(--color-accent)" }}>Admin</span>
         </span>
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl"
-          style={{ background: "rgba(255,255,255,0.07)" }}
-        >
-          <Menu size={20} style={{ color: "#F5F2EA" }} />
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl"
+            style={{ background: "rgba(255,255,255,0.07)" }}
+          >
+            <Menu size={20} style={{ color: "#F5F2EA" }} />
+          </button>
+        </div>
       </div>
 
       {/* ── Mobile drawer backdrop ── */}

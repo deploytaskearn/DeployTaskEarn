@@ -148,12 +148,10 @@ async function submitTask(req, res) {
     }
 
     notifyAdmin(
+      'SUBMISSION',
       `New task submission — ${task.title}`,
-      `<p>A new task submission needs review.</p>
-       <p><b>Task:</b> ${task.title}<br/>
-       <b>Reward:</b> Rs ${task.rewardAmount}<br/>
-       <b>User:</b> ${req.user.email}</p>
-       <p>Review it in the admin panel under Submissions.</p>`
+      `${req.user.email} · Reward Rs ${task.rewardAmount}`,
+      '/submissions'
     );
 
     res.status(201).json({
