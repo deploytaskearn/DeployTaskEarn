@@ -25,20 +25,20 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { href: "/secure-mgmt", label: "Overview", icon: LayoutDashboard },
-  { href: "/secure-mgmt/plans", label: "Plans", icon: Trophy },
-  { href: "/secure-mgmt/customize", label: "Customize site", icon: Palette },
-  { href: "/secure-mgmt/deposits", label: "Deposits", icon: Banknote },
-  { href: "/secure-mgmt/withdrawals", label: "Withdrawals", icon: ArrowUpFromLine },
-  { href: "/secure-mgmt/tasks", label: "Tasks", icon: ListChecks },
-  { href: "/secure-mgmt/submissions", label: "Submissions", icon: ClipboardCheck },
-  { href: "/secure-mgmt/users", label: "Users", icon: Users },
-  { href: "/secure-mgmt/referrals", label: "Referrals", icon: GitBranch },
-  { href: "/secure-mgmt/blog", label: "Blog", icon: Newspaper },
-  { href: "/secure-mgmt/help-videos", label: "Help Videos", icon: Video },
-  { href: "/secure-mgmt/settings", label: "Payment settings", icon: Settings },
-  { href: "/secure-mgmt/spin", label: "Spin Wheel", icon: Ticket },
-  { href: "/secure-mgmt/mystery", label: "Mystery Box", icon: Package },
+  { href: "/mg-5bcdfea71b", label: "Overview", icon: LayoutDashboard },
+  { href: "/mg-5bcdfea71b/plans", label: "Plans", icon: Trophy },
+  { href: "/mg-5bcdfea71b/customize", label: "Customize site", icon: Palette },
+  { href: "/mg-5bcdfea71b/deposits", label: "Deposits", icon: Banknote },
+  { href: "/mg-5bcdfea71b/withdrawals", label: "Withdrawals", icon: ArrowUpFromLine },
+  { href: "/mg-5bcdfea71b/tasks", label: "Tasks", icon: ListChecks },
+  { href: "/mg-5bcdfea71b/submissions", label: "Submissions", icon: ClipboardCheck },
+  { href: "/mg-5bcdfea71b/users", label: "Users", icon: Users },
+  { href: "/mg-5bcdfea71b/referrals", label: "Referrals", icon: GitBranch },
+  { href: "/mg-5bcdfea71b/blog", label: "Blog", icon: Newspaper },
+  { href: "/mg-5bcdfea71b/help-videos", label: "Help Videos", icon: Video },
+  { href: "/mg-5bcdfea71b/settings", label: "Payment settings", icon: Settings },
+  { href: "/mg-5bcdfea71b/spin", label: "Spin Wheel", icon: Ticket },
+  { href: "/mg-5bcdfea71b/mystery", label: "Mystery Box", icon: Package },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/secure-mgmt/login");
+      router.replace("/mg-5bcdfea71b/login");
     }
   }, [user, loading, router]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const NavLinks = ({ onNav }: { onNav?: () => void }) => (
     <>
       {NAV.map((item) => {
-        const active = item.href === "/secure-mgmt" ? pathname === item.href : pathname.startsWith(item.href);
+        const active = item.href === "/mg-5bcdfea71b" ? pathname === item.href : pathname.startsWith(item.href);
         const Icon = item.icon;
         return (
           <Link
@@ -98,7 +98,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         className="w-64 shrink-0 hidden md:flex flex-col py-6 px-4"
         style={{ borderRight: "1px solid rgba(245,242,234,0.1)" }}
       >
-        <Link href="/secure-mgmt" className="font-display text-xl mb-8 px-2" style={{ color: "var(--color-surface)" }}>
+        <Link href="/mg-5bcdfea71b" className="font-display text-xl mb-8 px-2" style={{ color: "var(--color-surface)" }}>
           TaskEarn <span style={{ color: "var(--color-accent)" }}>Admin</span>
         </Link>
         <nav className="flex flex-col gap-1 flex-1">

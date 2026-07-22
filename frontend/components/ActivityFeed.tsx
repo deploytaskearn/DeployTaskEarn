@@ -66,9 +66,9 @@ export function ActivityFeed() {
   const slot1 = useSlot(5000, () => randNum(8000, 14000));
 
   // Only show this "recent activity" trust widget on the public marketing
-  // pages — it was overlapping the sidebar nav on /secure-mgmt (admin) and
+  // pages — it was overlapping the sidebar nav on /mg-5bcdfea71b (admin) and
   // has no place being shown to already-registered users on /dashboard.
-  const isAppRoute = pathname?.startsWith("/secure-mgmt") || pathname?.startsWith("/dashboard");
+  const isAppRoute = pathname?.startsWith("/mg-5bcdfea71b") || pathname?.startsWith("/dashboard");
   if (isAppRoute || !slot1.visible || !slot1.activity) return null;
 
   return (

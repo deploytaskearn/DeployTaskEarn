@@ -23,7 +23,7 @@ adminApi.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("taskearn_admin_token");
-      window.location.href = "/secure-mgmt/login";
+      window.location.href = "/mg-5bcdfea71b/login";
     }
     return Promise.reject(error);
   }

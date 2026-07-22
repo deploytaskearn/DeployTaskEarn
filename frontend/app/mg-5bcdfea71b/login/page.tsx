@@ -15,7 +15,7 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (!loading && admin) {
-      router.replace("/secure-mgmt");
+      router.replace("/mg-5bcdfea71b");
     }
   }, [admin, loading, router]);
 
@@ -25,7 +25,7 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      router.replace("/secure-mgmt");
+      router.replace("/mg-5bcdfea71b");
     } catch {
       setError("Invalid credentials.");
     } finally {
