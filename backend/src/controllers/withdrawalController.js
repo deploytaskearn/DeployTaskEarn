@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
+const { notifyAdmin } = require('../utils/adminNotify');
 
 const createWithdrawalSchema = z.object({
   method: z.enum(['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER']),
@@ -47,6 +48,16 @@ async function createWithdrawal(req, res) {
       }
       throw debitErr;
     }
+
+    notifyAdmin(
+      `New withdrawal request — Rs ${data.amount}`,
+      `<p>A new withdrawal request needs review.</p>
+       <p><b>Amount:</b> Rs ${data.amount}<br/>
+       <b>Method:</b> ${data.method}<br/>
+       <b>Account:</b> ${data.accountName} — ${data.accountNumber}<br/>
+       <b>User:</b> ${req.user.email}</p>
+       <p>Review it in the admin panel under Withdrawals.</p>`
+    );
 
     res.status(201).json(withdrawal.rows[0]);
   } catch (err) {

@@ -2,6 +2,7 @@ const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 const { approveSubmission } = require('../services/taskApprovalService');
+const { notifyAdmin } = require('../utils/adminNotify');
 
 async function listTasks(req, res) {
   try {
@@ -145,6 +146,15 @@ async function submitTask(req, res) {
         message: 'Approved automatically! The reward has been added to your wallet.',
       });
     }
+
+    notifyAdmin(
+      `New task submission — ${task.title}`,
+      `<p>A new task submission needs review.</p>
+       <p><b>Task:</b> ${task.title}<br/>
+       <b>Reward:</b> Rs ${task.rewardAmount}<br/>
+       <b>User:</b> ${req.user.email}</p>
+       <p>Review it in the admin panel under Submissions.</p>`
+    );
 
     res.status(201).json({
       submission: result.rows[0],

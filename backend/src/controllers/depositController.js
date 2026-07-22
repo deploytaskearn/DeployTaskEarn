@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
+const { notifyAdmin } = require('../utils/adminNotify');
 
 const createDepositSchema = z.object({
   method: z.enum(['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER']),
@@ -38,6 +39,15 @@ async function createDeposit(req, res) {
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'PENDING', now())
        RETURNING *`,
       [req.user.id, data.method, data.amount, data.senderAccountNo || null, data.transactionId || null, screenshotUrl]
+    );
+
+    notifyAdmin(
+      `New deposit request — Rs ${data.amount}`,
+      `<p>A new deposit request needs review.</p>
+       <p><b>Amount:</b> Rs ${data.amount}<br/>
+       <b>Method:</b> ${data.method}<br/>
+       <b>User:</b> ${req.user.email}</p>
+       <p>Review it in the admin panel under Deposits.</p>`
     );
 
     res.status(201).json(result.rows[0]);
