@@ -26,6 +26,7 @@ const TEXT_FIELDS = [
   { key: "site_referral_pct", label: "Referral bonus %", placeholder: "5" },
   { key: "site_min_withdrawal", label: "Min withdrawal (₨)", placeholder: "500" },
   { key: "whatsapp_number", label: "WhatsApp number (country code, no +)", placeholder: "923001234567" },
+  { key: "whatsapp_group_link", label: "WhatsApp group invite link", placeholder: "https://chat.whatsapp.com/…" },
 ];
 
 async function saveSetting(key: string, value: string) {

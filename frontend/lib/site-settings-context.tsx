@@ -7,6 +7,7 @@ interface SiteSettings {
   site_name?: string;
   site_logo?: string;
   whatsapp_number?: string;
+  whatsapp_group_link?: string;
   [key: string]: string | undefined;
 }
 
