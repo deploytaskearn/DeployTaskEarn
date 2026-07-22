@@ -1,11 +1,18 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useSiteSettings } from "@/lib/site-settings-context";
 
 export function SupportButton() {
   const { whatsapp_number } = useSiteSettings();
+  const pathname = usePathname();
 
-  if (!whatsapp_number) return null;
+  // The dashboard has its own WhatsApp card (Main tab), and this floating
+  // button sits right on top of the bottom nav's "Menu" tab there — so skip
+  // it on /dashboard routes and only show it on the public/marketing pages.
+  const isDashboardRoute = pathname?.startsWith("/dashboard");
+
+  if (!whatsapp_number || isDashboardRoute) return null;
 
   const href = `https://wa.me/${whatsapp_number.replace(/\D/g, "")}`;
 
