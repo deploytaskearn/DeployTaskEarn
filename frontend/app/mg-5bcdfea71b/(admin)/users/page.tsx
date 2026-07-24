@@ -2,14 +2,30 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
-import { User } from "@/lib/types";
+import { User, LedgerEntry } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2 } from "lucide-react";
+import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2, History } from "lucide-react";
 
 interface AdminUserRow extends User {
   status: "ACTIVE" | "SUSPENDED" | "BANNED";
   referralBonusRate?: number | null;
 }
+
+const LEDGER_TYPE_LABELS: Record<string, string> = {
+  DEPOSIT: "Deposit approved",
+  TASK_EARNING: "Task reward",
+  WITHDRAWAL: "Withdrawal",
+  REFERRAL_BONUS: "Referral bonus",
+  REFERRAL_PLAN_BONUS: "Referral plan bonus",
+  ADMIN_ADJUSTMENT: "Admin adjustment",
+  PLAN_PURCHASE: "Plan purchase",
+  PLAN_REFUND: "Plan refund",
+  SPIN_REWARD: "Spin wheel reward",
+  REDEEM_CODE: "Redeem code",
+  MYSTERY_BOX: "Mystery box reward",
+  GOLD_SPIN_PURCHASE: "Gold spin purchase",
+  PREMIUM_BOX_PURCHASE: "Premium box purchase",
+};
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
@@ -23,6 +39,10 @@ export default function AdminUsersPage() {
   const [rateInput, setRateInput] = useState("");
   const [rateSaving, setRateSaving] = useState(false);
   const [rateError, setRateError] = useState("");
+  // balance history modal
+  const [historyModal, setHistoryModal] = useState<AdminUserRow | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<LedgerEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   function load() {
     setLoading(true);
@@ -52,6 +72,15 @@ export default function AdminUsersPage() {
     setRateModal(u);
     setRateInput(u.referralBonusRate != null ? String(u.referralBonusRate) : "");
     setRateError("");
+  }
+
+  function openHistory(u: AdminUserRow) {
+    setHistoryModal(u);
+    setHistoryLoading(true);
+    api.get<LedgerEntry[]>(`/admin/users/${u.id}/history`)
+      .then((res) => setHistoryEntries(res.data))
+      .catch(() => setHistoryEntries([]))
+      .finally(() => setHistoryLoading(false));
   }
 
   async function deleteUser(id: string) {
@@ -120,6 +149,15 @@ export default function AdminUsersPage() {
               <span className="font-mono-tabular text-sm shrink-0" style={{ color: "var(--color-surface)" }}>
                 ₨{parseFloat(u.balance || "0").toFixed(2)}
               </span>
+
+              <button
+                onClick={() => openHistory(u)}
+                title="View balance history"
+                className="p-2 rounded-sm shrink-0"
+                style={{ color: "rgba(245,242,234,0.5)" }}
+              >
+                <History size={16} />
+              </button>
 
               <span
                 className="text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
@@ -237,6 +275,56 @@ export default function AdminUsersPage() {
                 Saving empty will remove the custom rate and revert to 5%.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Balance History Modal ── */}
+      {historyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setHistoryModal(null)}>
+          <div className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl p-6" style={{ background: "#0d1f16", border: "1px solid rgba(255,255,255,0.1)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="font-semibold text-base" style={{ color: "#F5F2EA" }}>Balance History</div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.45)" }}>{historyModal.name} · {historyModal.email}</div>
+              </div>
+              <button onClick={() => setHistoryModal(null)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <X size={15} style={{ color: "#F5F2EA" }} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto -mx-6 px-6">
+              {historyLoading ? (
+                <div className="py-10 text-center text-sm" style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>
+              ) : historyEntries.length === 0 ? (
+                <div className="py-10 text-center text-sm" style={{ color: "rgba(245,242,234,0.5)" }}>No balance activity yet.</div>
+              ) : (
+                <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {historyEntries.map((entry, i) => (
+                    <div key={entry.id} className="flex items-center justify-between gap-4 px-4 py-3"
+                      style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium truncate" style={{ color: "#F5F2EA" }}>
+                          {entry.note || LEDGER_TYPE_LABELS[entry.type] || entry.type}
+                        </span>
+                        <span className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                          {LEDGER_TYPE_LABELS[entry.type] || entry.type} · {new Date(entry.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className="font-mono-tabular text-sm font-semibold"
+                          style={{ color: entry.direction === "CREDIT" ? "var(--color-accent-dim)" : "var(--color-alert)" }}>
+                          {entry.direction === "CREDIT" ? "+" : "-"}₨{parseFloat(entry.amount).toFixed(2)}
+                        </span>
+                        <span className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>
+                          bal: ₨{parseFloat(entry.balanceAfter).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

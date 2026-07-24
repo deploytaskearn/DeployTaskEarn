@@ -121,6 +121,22 @@ async function deleteUser(req, res) {
   }
 }
 
+async function getUserHistory(req, res) {
+  try {
+    const { id } = req.params;
+    const userRes = await pool.query('SELECT id FROM "User" WHERE id = $1', [id]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 200);
+    const offset = parseInt(req.query.offset, 10) || 0;
+    const entries = await walletService.getLedgerHistory(id, limit, offset);
+    res.json(entries);
+  } catch (err) {
+    console.error('getUserHistory error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 async function adjustUserBalance(req, res) {
   try {
     const { id } = req.params;
@@ -444,6 +460,7 @@ module.exports = {
   deleteUser,
   setReferralRate,
   adjustUserBalance,
+  getUserHistory,
   createTask,
   bulkCreateTasks,
   updateTask,
