@@ -83,6 +83,17 @@ export interface Withdrawal {
   createdAt: string;
 }
 
+export interface LedgerEntry {
+  id: string;
+  type: string;
+  direction: "CREDIT" | "DEBIT";
+  amount: string;
+  balanceAfter: string;
+  referenceId?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+
 export interface BlogPost {
   id: string;
   title: string;

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { TaskSubmission, Deposit, Withdrawal } from "@/lib/types";
+import { TaskSubmission, Deposit, Withdrawal, LedgerEntry } from "@/lib/types";
 
 type HistoryItem = {
   id: string;
-  type: "Task" | "Deposit" | "Withdrawal";
+  type: string;
   label: string;
   amount: string;
   status: string;
@@ -18,6 +18,25 @@ const STATUS_COLORS: Record<string, string> = {
   APPROVED: "var(--color-accent)",
   REJECTED: "var(--color-alert)",
   PAID: "var(--color-accent)",
+  COMPLETED: "var(--color-accent)",
+};
+
+// Ledger entry types already represented by the Task/Deposit/Withdrawal
+// endpoints above (which also carry pending/rejected status) — skip these
+// from the ledger feed to avoid showing the same event twice.
+const LEDGER_TYPES_SHOWN_ELSEWHERE = new Set(["TASK_EARNING", "DEPOSIT", "WITHDRAWAL"]);
+
+const LEDGER_TYPE_LABELS: Record<string, string> = {
+  REFERRAL_BONUS: "Referral bonus",
+  REFERRAL_PLAN_BONUS: "Referral plan bonus",
+  ADMIN_ADJUSTMENT: "Admin adjustment",
+  PLAN_PURCHASE: "Plan purchase",
+  PLAN_REFUND: "Plan refund",
+  SPIN_REWARD: "Spin wheel reward",
+  REDEEM_CODE: "Redeem code",
+  MYSTERY_BOX: "Mystery box reward",
+  GOLD_SPIN_PURCHASE: "Gold spin purchase",
+  PREMIUM_BOX_PURCHASE: "Premium box purchase",
 };
 
 export function HistoryTab() {
@@ -29,7 +48,8 @@ export function HistoryTab() {
       api.get<TaskSubmission[]>("/tasks/my-submissions"),
       api.get<Deposit[]>("/deposits/my"),
       api.get<Withdrawal[]>("/withdrawals/my"),
-    ]).then(([tasksRes, depositsRes, withdrawalsRes]) => {
+      api.get<LedgerEntry[]>("/wallet/history"),
+    ]).then(([tasksRes, depositsRes, withdrawalsRes, ledgerRes]) => {
       const taskItems: HistoryItem[] = tasksRes.data.map((s) => ({
         id: s.id, type: "Task",
         label: s.taskTitle || "Task submission",
@@ -48,7 +68,17 @@ export function HistoryTab() {
         amount: `-₨${parseFloat(w.amount).toFixed(2)}`,
         status: w.status, createdAt: w.createdAt,
       }));
-      const all = [...taskItems, ...depositItems, ...withdrawalItems].sort(
+      const ledgerItems: HistoryItem[] = ledgerRes.data
+        .filter((l) => !LEDGER_TYPES_SHOWN_ELSEWHERE.has(l.type))
+        .map((l) => ({
+          id: l.id,
+          type: LEDGER_TYPE_LABELS[l.type] || l.type,
+          label: l.note || LEDGER_TYPE_LABELS[l.type] || l.type,
+          amount: `${l.direction === "CREDIT" ? "+" : "-"}₨${parseFloat(l.amount).toFixed(2)}`,
+          status: "COMPLETED",
+          createdAt: l.createdAt,
+        }));
+      const all = [...taskItems, ...depositItems, ...withdrawalItems, ...ledgerItems].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setItems(all);

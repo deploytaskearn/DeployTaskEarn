@@ -19,6 +19,7 @@ const planRoutes = require('./routes/planRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const spinRoutes = require('./routes/spinRoutes');
 const mysteryRoutes = require('./routes/mysteryRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 
 const app = express();
 
@@ -77,6 +78,7 @@ app.use('/api/plans', planRoutes);
 app.use('/api/admin/upload', uploadRoutes);
 app.use('/api/spin', spinRoutes);
 app.use('/api/mystery', mysteryRoutes);
+app.use('/api/wallet', walletRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
