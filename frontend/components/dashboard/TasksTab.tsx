@@ -315,6 +315,9 @@ function TaskCard({
             <CheckCircle2 size={16} color="#00C875" />
             <span className="text-sm font-bold" style={{ color: "#00C875" }}>Approved — Rs{parseFloat(task.rewardAmount).toFixed(0)} added</span>
           </div>
+          {!task.isFreeTask && (
+            <p className="text-xs mt-1" style={{ color: "rgba(0,200,117,0.7)" }}>New task unlocks at 12:00 AM</p>
+          )}
         </div>
       ) : status === "REJECTED" ? (
         <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(232,99,58,0.1)", border: "1px solid rgba(232,99,58,0.25)" }}>

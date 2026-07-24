@@ -36,13 +36,17 @@ async function listTasks(req, res) {
         pi."taskPlanId",
         (pi."taskId" IS NULL) as "isFreeTask",
         (
+          -- Plan tasks reset every night at midnight (Asia/Karachi); free tasks are one-time-ever.
           SELECT ts.status FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
+            AND (pi."taskId" IS NULL OR ts."createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi')
+          ORDER BY ts."createdAt" DESC
           LIMIT 1
         ) as "submissionStatus",
         EXISTS(
           SELECT 1 FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
+            AND (pi."taskId" IS NULL OR ts."createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi')
         ) as "alreadySubmitted"
       FROM "Task" t
       LEFT JOIN "TaskCategory" tc ON tc.id = t."categoryId"
@@ -96,12 +100,26 @@ async function submitTask(req, res) {
       return res.status(400).json({ error: 'Task is not currently active' });
     }
 
+    // A task with PlanTask rows belongs to one or more plans — only members of
+    // one of those plans may submit it, and their submission auto-approves and
+    // resets every night at midnight (Asia/Karachi). Free tasks (no PlanTask
+    // rows) are one-time-ever and still require manual admin review.
+    const planLinks = await pool.query('SELECT "planId" FROM "PlanTask" WHERE "taskId" = $1', [taskId]);
+    const isPlanTask = planLinks.rows.length > 0;
+
     const existing = await pool.query(
-      'SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2',
+      isPlanTask
+        ? `SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2
+           AND "createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi'`
+        : `SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2`,
       [taskId, userId]
     );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'You already completed this task' });
+      return res.status(409).json({
+        error: isPlanTask
+          ? 'You already completed this task today. New tasks unlock at 12:00 AM.'
+          : 'You already completed this task',
+      });
     }
 
     // Validate proof if task requires it
@@ -110,12 +128,6 @@ async function submitTask(req, res) {
     if (task.requiresProof && !proofText && !proofFileUrl) {
       return res.status(400).json({ error: 'Proof is required for this task (screenshot or description).' });
     }
-
-    // A task with PlanTask rows belongs to one or more plans — only members of
-    // one of those plans may submit it, and their submission auto-approves.
-    // Free tasks (no PlanTask rows) still require manual admin review.
-    const planLinks = await pool.query('SELECT "planId" FROM "PlanTask" WHERE "taskId" = $1', [taskId]);
-    const isPlanTask = planLinks.rows.length > 0;
 
     if (isPlanTask) {
       const planIds = planLinks.rows.map((r) => r.planId);

@@ -355,6 +355,27 @@ async function runMigrations() {
     )`,
     `CREATE INDEX IF NOT EXISTS "AdminNotification_isRead_idx" ON "AdminNotification"("isRead")`,
     `CREATE INDEX IF NOT EXISTS "AdminNotification_createdAt_idx" ON "AdminNotification"("createdAt")`,
+    // Plan tasks are now repeatable once per day (reset at midnight, Asia/Karachi)
+    // instead of once-ever, so a user can keep earning daily as long as their plan stays active.
+    `ALTER TABLE "TaskSubmission" DROP CONSTRAINT IF EXISTS "TaskSubmission_taskId_userId_key"`,
+    `CREATE INDEX IF NOT EXISTS "TaskSubmission_taskId_userId_createdAt_idx" ON "TaskSubmission"("taskId","userId","createdAt")`,
+    // Lets admin attach a scannable QR code image to a deposit method, shown
+    // to users alongside the account number/name.
+    `ALTER TABLE "PaymentMethodConfig" ADD COLUMN IF NOT EXISTS "qrCodeUrl" TEXT`,
+    // Per-amount payment "sections" — e.g. a dedicated account + QR code just
+    // for Rs 100 deposits, another for Rs 2000, etc. Falls back to the
+    // method's default account/QR (above) when the entered amount matches no tier.
+    `CREATE TABLE IF NOT EXISTS "PaymentMethodTier" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      method "DepositMethod" NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      "accountName" TEXT,
+      "accountNumber" TEXT,
+      "qrCodeUrl" TEXT,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "PaymentMethodTier_method_idx" ON "PaymentMethodTier"(method)`,
   ];
   for (const stmt of patches) {
     try {

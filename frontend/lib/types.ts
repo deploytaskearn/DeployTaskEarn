@@ -95,6 +95,16 @@ export interface BlogPost {
   createdAt: string;
 }
 
+export interface PaymentMethodTier {
+  id: string;
+  method: "EASYPAISA" | "JAZZCASH" | "BANK_TRANSFER";
+  amount: string;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  qrCodeUrl?: string | null;
+  sortOrder: number;
+}
+
 export interface PaymentMethodConfig {
   id: string;
   method: "EASYPAISA" | "JAZZCASH" | "BANK_TRANSFER";
@@ -102,6 +112,8 @@ export interface PaymentMethodConfig {
   accountName?: string | null;
   accountNumber?: string | null;
   instructions?: string | null;
+  qrCodeUrl?: string | null;
+  tiers?: PaymentMethodTier[];
 }
 
 export interface TaskCategory {

@@ -10,14 +10,37 @@ const createDepositSchema = z.object({
   transactionId: z.string().optional(),
 });
 
+async function attachTiers(methodRows) {
+  const tiersResult = await pool.query(
+    'SELECT * FROM "PaymentMethodTier" ORDER BY "sortOrder" ASC, amount ASC'
+  );
+  const tiersByMethod = {};
+  for (const t of tiersResult.rows) {
+    (tiersByMethod[t.method] ||= []).push(t);
+  }
+  return methodRows.map((m) => ({ ...m, tiers: tiersByMethod[m.method] || [] }));
+}
+
 async function getPaymentMethods(req, res) {
   try {
     const result = await pool.query(
       'SELECT * FROM "PaymentMethodConfig" WHERE "isEnabled" = true'
     );
-    res.json(result.rows);
+    res.json(await attachTiers(result.rows));
   } catch (err) {
     console.error('getPaymentMethods error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Admin variant: returns every method (including disabled ones) with tiers,
+// so the settings page doesn't lose data for a method the admin has turned off.
+async function adminGetAllMethods(req, res) {
+  try {
+    const result = await pool.query('SELECT * FROM "PaymentMethodConfig"');
+    res.json(await attachTiers(result.rows));
+  } catch (err) {
+    console.error('adminGetAllMethods error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -139,19 +162,78 @@ async function adminReviewDeposit(req, res) {
 
 async function adminUpsertPaymentMethod(req, res) {
   try {
-    const { method, isEnabled, accountName, accountNumber, instructions } = req.body;
+    const { method, isEnabled, accountName, accountNumber, instructions, qrCodeUrl } = req.body;
 
     const result = await pool.query(
-      `INSERT INTO "PaymentMethodConfig" (id, method, "isEnabled", "accountName", "accountNumber", instructions, "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+      `INSERT INTO "PaymentMethodConfig" (id, method, "isEnabled", "accountName", "accountNumber", instructions, "qrCodeUrl", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, now())
        ON CONFLICT (method) DO UPDATE SET
-         "isEnabled" = $2, "accountName" = $3, "accountNumber" = $4, instructions = $5, "updatedAt" = now()
+         "isEnabled" = $2, "accountName" = $3, "accountNumber" = $4, instructions = $5, "qrCodeUrl" = $6, "updatedAt" = now()
        RETURNING *`,
-      [method, isEnabled, accountName, accountNumber, instructions]
+      [method, isEnabled, accountName, accountNumber, instructions, qrCodeUrl || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
     console.error('adminUpsertPaymentMethod error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function adminCreatePaymentTier(req, res) {
+  try {
+    const { method } = req.params;
+    const { amount, accountName, accountNumber, qrCodeUrl } = req.body;
+    if (!['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER'].includes(method)) {
+      return res.status(400).json({ error: 'Invalid method' });
+    }
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) {
+      return res.status(400).json({ error: 'amount must be a positive number' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO "PaymentMethodTier" (id, method, amount, "accountName", "accountNumber", "qrCodeUrl")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+       RETURNING *`,
+      [method, amt, accountName || null, accountNumber || null, qrCodeUrl || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('adminCreatePaymentTier error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function adminUpdatePaymentTier(req, res) {
+  try {
+    const { id } = req.params;
+    const { amount, accountName, accountNumber, qrCodeUrl } = req.body;
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) {
+      return res.status(400).json({ error: 'amount must be a positive number' });
+    }
+
+    const result = await pool.query(
+      `UPDATE "PaymentMethodTier"
+       SET amount = $1, "accountName" = $2, "accountNumber" = $3, "qrCodeUrl" = $4
+       WHERE id = $5 RETURNING *`,
+      [amt, accountName || null, accountNumber || null, qrCodeUrl || null, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Section not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('adminUpdatePaymentTier error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function adminDeletePaymentTier(req, res) {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM "PaymentMethodTier" WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeletePaymentTier error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -163,4 +245,8 @@ module.exports = {
   adminListDeposits,
   adminReviewDeposit,
   adminUpsertPaymentMethod,
+  adminGetAllMethods,
+  adminCreatePaymentTier,
+  adminUpdatePaymentTier,
+  adminDeletePaymentTier,
 };
