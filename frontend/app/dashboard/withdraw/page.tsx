@@ -6,6 +6,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import api from "@/lib/api";
 import { Withdrawal } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
+import { useSiteSettings } from "@/lib/site-settings-context";
 import { ArrowLeft, CheckCircle2, AlertCircle, Wallet, Clock, XCircle, ArrowUpFromLine, Copy, Check } from "lucide-react";
 
 const METHODS = [
@@ -13,13 +14,15 @@ const METHODS = [
   { value: "JAZZCASH", label: "JazzCash" },
   { value: "BANK_TRANSFER", label: "Bank Transfer" },
 ];
-const MIN = 500;
+const DEFAULT_MIN = 500;
 const INPUT = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F2EA" };
 
 export default function WithdrawPage() {
   const router = useRouter();
   const { user, loading } = useRequireAuth();
   const { refreshUser } = useAuth();
+  const siteSettings = useSiteSettings();
+  const MIN = parseFloat(siteSettings.site_min_withdrawal || "") || DEFAULT_MIN;
   const [method, setMethod] = useState("EASYPAISA");
   const [amount, setAmount] = useState("");
   const [accountName, setAccountName] = useState("");
