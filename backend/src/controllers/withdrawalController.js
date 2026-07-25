@@ -10,7 +10,15 @@ const createWithdrawalSchema = z.object({
   accountNumber: z.string().min(3),
 });
 
-const MIN_WITHDRAWAL = 500; // adjust to your business rules
+const DEFAULT_MIN_WITHDRAWAL = 500;
+
+async function getMinWithdrawal() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='site_min_withdrawal' LIMIT 1`);
+    if (r.rows.length && r.rows[0].value) return parseFloat(r.rows[0].value);
+  } catch {}
+  return DEFAULT_MIN_WITHDRAWAL;
+}
 
 /**
  * User requests a withdrawal. We debit the wallet immediately
@@ -21,8 +29,9 @@ async function createWithdrawal(req, res) {
   try {
     const data = createWithdrawalSchema.parse(req.body);
 
-    if (data.amount < MIN_WITHDRAWAL) {
-      return res.status(400).json({ error: `Minimum withdrawal is ${MIN_WITHDRAWAL}` });
+    const minWithdrawal = await getMinWithdrawal();
+    if (data.amount < minWithdrawal) {
+      return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal}` });
     }
 
     const withdrawal = await pool.query(
