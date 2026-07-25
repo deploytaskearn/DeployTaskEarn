@@ -42,6 +42,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, []);
 
+  // Poll for balance changes made outside the current tab (e.g. an admin
+  // approving a deposit/withdrawal) so the wallet balance stays fresh
+  // without requiring a manual page reload.
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(refreshUser, 15000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
   async function login(email: string, password: string) {
     const res = await api.post("/auth/login", { email, password });
     localStorage.setItem("taskearn_token", res.data.token);

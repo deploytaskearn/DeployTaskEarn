@@ -42,7 +42,6 @@ export default function DashboardPage() {
   const [histDeposits, setHistDeposits] = useState<Deposit[]>([]);
   const [histWithdrawals, setHistWithdrawals] = useState<Withdrawal[]>([]);
   const [histLoading, setHistLoading] = useState(false);
-  const [liveBalance, setLiveBalance] = useState<string | null>(null);
   const [referralDetails, setReferralDetails] = useState<{
     referredUsers: { id: string; name: string; joinedAt: string; plansBought: string }[];
     bonuses: { id: string; amount: string; createdAt: string; referredUserName: string; planName: string }[];
@@ -70,16 +69,10 @@ export default function DashboardPage() {
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
     api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
-    // Fetch fresh wallet balance from server (auth context balance can be stale)
-    api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
     api.get<HelpVideo[]>("/cms/help-videos").then((r) => setHelpVideos(r.data ?? [])).catch(() => {});
   }, [user]);
 
   function refreshBalance() {
-    api.get<{ balance: string }>("/auth/me").then((r) => setLiveBalance(r.data.balance ?? "0")).catch(() => {});
-    // Also sync the shared auth context so the balance stays fresh across
-    // page navigations (e.g. coming back from Gold Spin / Premium Box),
-    // which remount this page and would otherwise show a stale cached value.
     refreshUser();
   }
 
@@ -153,7 +146,7 @@ export default function DashboardPage() {
     );
   }
 
-  const balance = parseFloat(liveBalance ?? user.balance ?? "0").toFixed(2);
+  const balance = parseFloat(user.balance ?? "0").toFixed(2);
   const referralCode = referralStats?.referralCode || user.referralCode;
   const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/register?ref=${referralCode}`;
 
