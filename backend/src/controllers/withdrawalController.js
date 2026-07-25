@@ -2,6 +2,7 @@ const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 const { notifyAdmin } = require('../utils/adminNotify');
+const { sendTelegramAlert } = require('../utils/telegramNotify');
 
 const createWithdrawalSchema = z.object({
   method: z.enum(['EASYPAISA', 'JAZZCASH', 'BANK_TRANSFER']),
@@ -63,6 +64,9 @@ async function createWithdrawal(req, res) {
       `New withdrawal request — Rs ${data.amount}`,
       `${req.user.email} via ${data.method} — ${data.accountName} (${data.accountNumber})`,
       '/withdrawals'
+    );
+    sendTelegramAlert(
+      `💸 <b>New Withdrawal Request</b>\nAmount: Rs ${data.amount}\nUser: ${req.user.email}\nMethod: ${data.method}\nAccount: ${data.accountName} (${data.accountNumber})`
     );
 
     res.status(201).json(withdrawal.rows[0]);

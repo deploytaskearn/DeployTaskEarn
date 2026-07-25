@@ -2,6 +2,7 @@ const { z } = require('zod');
 const pool = require('../db/pool');
 const walletService = require('../services/walletService');
 const { approveSubmission } = require('../services/taskApprovalService');
+const { callTelegram } = require('../utils/telegramNotify');
 
 // ───────────── DASHBOARD STATS ─────────────
 
@@ -453,6 +454,18 @@ async function markAllNotificationsRead(req, res) {
   }
 }
 
+// ───────────── TELEGRAM TEST ALERT ─────────────
+
+async function testTelegramAlert(req, res) {
+  try {
+    await callTelegram('🔔 <b>Test Alert</b>\nYeh TaskEarn admin panel se test message hai. Agar aapko yeh mil raha hai, deposit/withdrawal Telegram notifications theek kaam kar rahi hain!');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('testTelegramAlert error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   dashboardStats,
   listUsers,
@@ -471,4 +484,5 @@ module.exports = {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  testTelegramAlert,
 };

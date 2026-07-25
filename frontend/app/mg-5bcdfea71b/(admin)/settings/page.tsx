@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { PaymentMethodConfig, PaymentMethodTier } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Save, QrCode, X, Plus, Trash2 } from "lucide-react";
+import { Save, QrCode, X, Plus, Trash2, Send } from "lucide-react";
 
 const METHODS = [
   { value: "EASYPAISA", label: "EasyPaisa" },
@@ -25,6 +25,8 @@ export default function AdminSettingsPage() {
   const [savedMethod, setSavedMethod] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [savingTier, setSavingTier] = useState<string | null>(null);
+  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [telegramResult, setTelegramResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     api.get("/deposits/admin/methods").then((res) => {
@@ -122,11 +124,47 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function testTelegramAlert() {
+    setTestingTelegram(true);
+    setTelegramResult(null);
+    try {
+      await api.post("/admin/test-telegram-alert");
+      setTelegramResult({ ok: true, text: "Sent! Check your Telegram." });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to send.";
+      setTelegramResult({ ok: false, text: msg });
+    } finally {
+      setTestingTelegram(false);
+    }
+  }
+
   if (loading) return <div style={{ color: "rgba(245,242,234,0.5)" }}>Loading…</div>;
 
   return (
     <div>
       <AdminPageHeader title="Payment settings" subtitle="These account details are shown to users when they submit a manual deposit." />
+
+      <div className="mb-5 p-5 rounded-sm flex items-center justify-between gap-4 flex-wrap" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--color-surface)" }}>Telegram deposit/withdrawal alerts</h3>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-muted)" }}>
+            Send a test message to confirm the bot is working before relying on it.
+          </p>
+          {telegramResult && (
+            <p className="text-xs mt-1.5 font-medium" style={{ color: telegramResult.ok ? "var(--color-accent)" : "#E8633A" }}>
+              {telegramResult.text}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={testTelegramAlert}
+          disabled={testingTelegram}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-sm text-sm font-medium disabled:opacity-60 shrink-0"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          <Send size={14} /> {testingTelegram ? "Sending…" : "Send test alert"}
+        </button>
+      </div>
 
       <div className="flex flex-col gap-5">
         {METHODS.map((m) => {
