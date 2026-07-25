@@ -90,7 +90,7 @@ export function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl shadow-xl z-50"
+          className="fixed md:absolute right-3 md:right-0 top-16 md:top-auto md:mt-2 w-[min(320px,calc(100vw-24px))] md:w-80 max-h-96 overflow-y-auto rounded-2xl shadow-xl z-50"
           style={{ background: "#0d1f16", border: "1px solid rgba(245,242,234,0.12)" }}
         >
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(245,242,234,0.08)" }}>
