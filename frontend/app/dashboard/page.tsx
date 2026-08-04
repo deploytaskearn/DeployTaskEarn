@@ -124,11 +124,11 @@ export default function DashboardPage() {
     }
   }
 
-  async function handlePurchaseCustom() {
+  async function handlePurchaseCustom(amount: number) {
     setCustomPurchasing(true);
     setPurchaseMsg(null);
     try {
-      await api.post("/plans/purchase-custom", { amount: customAmount });
+      await api.post("/plans/purchase-custom", { amount });
       setPurchaseMsg({ type: "ok", text: "Custom Plan activated! Tasks are now unlocked." });
       api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => {});
       api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
@@ -668,7 +668,10 @@ export default function DashboardPage() {
             const min = parseFloat(customPlan.customMinAmount || "0");
             const max = parseFloat(customPlan.customMaxAmount || "0");
             const pct = parseFloat(customPlan.customReturnPercentage || "0");
-            const totalEarning = customAmount * (pct / 100);
+            // The thumb drags smoothly (fine-grained raw value), but the amount
+            // shown/used everywhere always snaps to the nearest Rs 500.
+            const amount = Math.min(max, Math.max(min, Math.round(customAmount / 500) * 500));
+            const totalEarning = amount * (pct / 100);
             const perDayEarning = totalEarning / (customPlan.durationDays || 30);
             const perMonthEarning = perDayEarning * 30;
             return (
@@ -686,13 +689,13 @@ export default function DashboardPage() {
                 {/* Slider */}
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>Choose your amount</span>
-                  <span className="font-mono-tabular text-lg font-bold" style={{ color: "#F4C842" }}>Rs{customAmount.toLocaleString()}</span>
+                  <span className="font-mono-tabular text-lg font-bold" style={{ color: "#F4C842" }}>Rs{amount.toLocaleString()}</span>
                 </div>
                 <input
                   type="range"
                   min={min}
                   max={max}
-                  step={500}
+                  step={1}
                   value={customAmount}
                   onChange={(e) => setCustomAmount(Number(e.target.value))}
                   className="w-full mb-1"
@@ -719,10 +722,10 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>
-                  You deposit <strong style={{ color: "#F5F2EA" }}>Rs{customAmount.toLocaleString()}</strong> now and earn back <strong style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</strong> total by completing daily tasks over {customPlan.durationDays} days.
+                  You deposit <strong style={{ color: "#F5F2EA" }}>Rs{amount.toLocaleString()}</strong> now and earn back <strong style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</strong> total by completing daily tasks over {customPlan.durationDays} days.
                 </div>
 
-                <button onClick={handlePurchaseCustom} disabled={customPurchasing || customAmount < min}
+                <button onClick={() => handlePurchaseCustom(amount)} disabled={customPurchasing || amount < min}
                   style={{ width: "100%", padding: "14px 0", borderRadius: 16, background: "#F4C842", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: customPurchasing ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   {customPurchasing ? "Activating…" : <><span>Activate Custom Plan</span><ChevronRight size={16} /></>}
                 </button>
