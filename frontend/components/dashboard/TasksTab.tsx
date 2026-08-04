@@ -32,9 +32,17 @@ async function downloadImage(url: string, filename: string) {
 // JPEG client-side before it ever hits the network, so the first upload
 // attempt is small and fast instead of relying on the user to retry with
 // the same oversized file.
-async function compressImage(file: File, maxDim = 1600, quality = 0.75): Promise<File> {
-  if (!file.type.startsWith("image/") || file.size < 350 * 1024) return file;
-  try {
+//
+// Guarded with a hard timeout: some older/in-app-browser WebViews either
+// lack createImageBitmap or have it hang indefinitely on certain image
+// formats, which would otherwise freeze the "preparing image" step forever.
+// If it doesn't finish in time, fall back to uploading the original file.
+async function compressImage(file: File, maxDim = 1280, quality = 0.7): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size < 350 * 1024 || typeof createImageBitmap !== "function") {
+    return file;
+  }
+
+  const doCompress = async (): Promise<File> => {
     const bitmap = await createImageBitmap(file);
     let { width, height } = bitmap;
     if (width > maxDim || height > maxDim) {
@@ -51,6 +59,13 @@ async function compressImage(file: File, maxDim = 1600, quality = 0.75): Promise
     const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
     if (!blob || blob.size >= file.size) return file;
     return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  };
+
+  try {
+    return await Promise.race([
+      doCompress(),
+      new Promise<File>((resolve) => setTimeout(() => resolve(file), 6000)),
+    ]);
   } catch {
     return file; // any failure (e.g. unsupported format) → fall back to the original
   }
@@ -167,6 +182,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
   const [submitError, setSubmitError] = useState<Record<string, string>>({});
+  const [uploadPct, setUploadPct] = useState<Record<string, number>>({});
 
   // Which task is waiting for proof
   const [proofTask, setProofTask] = useState<Task | null>(null);
@@ -210,6 +226,9 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
       const res = await api.post(`/tasks/${task.id}/submit`, form, {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 45000,
+        onUploadProgress: (evt) => {
+          if (evt.total) setUploadPct(s => ({ ...s, [task.id]: Math.round((evt.loaded / evt.total!) * 100) }));
+        },
       });
       const status = res.data.pending ? "PENDING" : "APPROVED";
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true, submissionStatus: status } : t));
@@ -224,6 +243,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
       load(false);
     } finally {
       setSubmitting(s => ({ ...s, [task.id]: false }));
+      setUploadPct(s => ({ ...s, [task.id]: 0 }));
     }
   }
 
@@ -274,6 +294,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {freeTasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
+                uploadPct={uploadPct[t.id] || 0}
                 error={submitError[t.id]}
                 onComplete={() => { setSubmitError(s => ({ ...s, [t.id]: "" })); setProofTask(t); }}
               />
@@ -296,6 +317,7 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {group.tasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
+                uploadPct={uploadPct[t.id] || 0}
                 error={submitError[t.id]}
                 onComplete={() => { setSubmitError(s => ({ ...s, [t.id]: "" })); setProofTask(t); }}
               />
@@ -310,10 +332,11 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
 // ── Task card ─────────────────────────────────────────────────────────────────
 
 function TaskCard({
-  task, submitting, error, onComplete,
+  task, submitting, uploadPct, error, onComplete,
 }: {
   task: Task;
   submitting: boolean;
+  uploadPct?: number;
   error?: string;
   onComplete: () => void;
 }) {
@@ -392,7 +415,7 @@ function TaskCard({
             style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
           >
             {submitting ? (
-              <><span className="animate-spin inline-block">⟳</span> Submitting…</>
+              <><span className="animate-spin inline-block">⟳</span> {uploadPct && uploadPct > 0 && uploadPct < 100 ? `Uploading… ${uploadPct}%` : "Submitting…"}</>
             ) : (
               <><Upload size={15} /> Submit Proof</>
             )}
