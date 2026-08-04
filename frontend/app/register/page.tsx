@@ -77,8 +77,8 @@ function RegisterForm() {
             <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="px-4 py-3 rounded-sm text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.55)" }}>Referral code (optional)</span>
-            <input value={referralCode} onChange={(e) => setReferralCode(e.target.value)} className="px-4 py-3 rounded-sm text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
+            <span className="text-xs uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.55)" }}>Referral code</span>
+            <input required value={referralCode} onChange={(e) => setReferralCode(e.target.value)} className="px-4 py-3 rounded-sm text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "var(--color-surface)" }} />
           </label>
 
           <button
