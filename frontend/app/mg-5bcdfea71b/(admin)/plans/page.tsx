@@ -253,7 +253,8 @@ export default function AdminPlansPage() {
     const pct = parseFloat(customForm.customReturnPercentage) || 0;
     const dur = Number(customForm.durationDays) || 30;
     const limit = Number(customForm.dailyTaskLimit) || 1;
-    const perTask = (amount: number) => (amount * (pct / 100) / dur) / limit;
+    // Total payout = the user's amount back + profit, not profit alone.
+    const perTask = (amount: number) => ((amount + amount * (pct / 100)) / dur) / limit;
     return { min: perTask(min), max: perTask(max) };
   })();
 
@@ -348,15 +349,17 @@ export default function AdminPlansPage() {
           const pct = parseFloat(customForm.customReturnPercentage) || 0;
           const dur = Number(customForm.durationDays) || 30;
           const limit = parseInt(customForm.dailyTaskLimit) || 1;
-          const totalAtMax = max * (pct / 100);
-          const perDayAtMax = totalAtMax / dur;
+          // Total payout = the user's amount back + profit, not profit alone.
+          const payoutAtMax = max + max * (pct / 100);
+          const payoutAtMin = min + min * (pct / 100);
+          const perDayAtMax = payoutAtMax / dur;
           const perTaskAtMax = perDayAtMax / limit;
-          const perTaskAtMin = (min * (pct / 100) / dur) / limit;
+          const perTaskAtMin = (payoutAtMin / dur) / limit;
           return (
             <div className="mb-5 px-4 py-3 rounded-xl text-xs" style={{ background: "rgba(244,200,66,0.08)", color: "rgba(245,242,234,0.65)" }}>
-              Example at max amount (₨{max.toLocaleString()}): total earning ≈ <strong style={{ color: "#F4C842" }}>₨{totalAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> over {dur} days
+              Example at max amount (₨{max.toLocaleString()}): total payout (amount back + profit) ≈ <strong style={{ color: "#F4C842" }}>₨{payoutAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> over {dur} days
               (≈ ₨{perDayAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}/day). Range: ₨{min.toLocaleString()} – ₨{max.toLocaleString()}.
-              <br />Each task completion pays ≈ <strong style={{ color: "#F4C842" }}>₨{perTaskAtMin.toLocaleString(undefined, { maximumFractionDigits: 2 })} – ₨{perTaskAtMax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong> (auto-calculated from amount ÷ {limit} tasks/day, no manual price needed).
+              <br />Each task completion pays ≈ <strong style={{ color: "#F4C842" }}>₨{perTaskAtMin.toLocaleString(undefined, { maximumFractionDigits: 2 })} – ₨{perTaskAtMax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong> (auto-calculated from amount+profit ÷ {limit} tasks/day, no manual price needed).
             </div>
           );
         })()}

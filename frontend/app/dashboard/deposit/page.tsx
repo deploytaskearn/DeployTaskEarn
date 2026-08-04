@@ -7,7 +7,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import api from "@/lib/api";
 import { PaymentMethodConfig, Deposit } from "@/lib/types";
 import { compressImage } from "@/lib/imageCompress";
-import { ArrowLeft, CheckCircle2, AlertCircle, Upload, Copy, Check, Clock, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Upload, Check, Clock, XCircle, QrCode, ShieldCheck } from "lucide-react";
 
 const METHOD_LABELS: Record<string, string> = {
   EASYPAISA: "EasyPaisa",
@@ -35,7 +35,6 @@ export default function DepositPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<Deposit[]>([]);
-  const [copied, setCopied] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -50,12 +49,6 @@ export default function DepositPage() {
   const activeTier = activeMethod?.tiers?.find((t) => parseFloat(t.amount) === parseFloat(amount));
   // A matching amount-specific section overrides the method's default account/QR.
   const displayAccount = activeTier || activeMethod;
-
-  function copyText(text: string, key: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(""), 2000);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -143,63 +136,66 @@ export default function DepositPage() {
               </div>
             </div>
 
-            {/* ── Amount-specific sections (quick picks) ── */}
-            {activeMethod && activeMethod.tiers && activeMethod.tiers.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs uppercase tracking-widest font-medium mb-3" style={{ color: "rgba(245,242,234,0.4)" }}>Or pick a fixed amount</p>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {activeMethod.tiers.map((t) => (
-                    <button key={t.id} type="button" onClick={() => setAmount(String(parseFloat(t.amount)))}
-                      className="shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                      style={{
-                        background: parseFloat(amount) === parseFloat(t.amount) ? "rgba(0,200,117,0.15)" : "rgba(255,255,255,0.04)",
-                        border: parseFloat(amount) === parseFloat(t.amount) ? "1.5px solid #00C875" : "1px solid rgba(255,255,255,0.08)",
-                        color: parseFloat(amount) === parseFloat(t.amount) ? "#00C875" : "rgba(245,242,234,0.7)",
-                      }}>
-                      Rs {parseFloat(t.amount).toFixed(0)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Account info ── */}
+            {/* ── Amount selection + Scan & Pay ── */}
             {activeMethod && (
-              <div className="mt-4 rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs uppercase tracking-widest font-medium" style={{ color: "rgba(245,242,234,0.4)" }}>Send money to</p>
-                  {activeTier && (
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(0,200,117,0.12)", color: "#00C875" }}>
-                      Rs {parseFloat(activeTier.amount).toFixed(0)} account
-                    </span>
+              <div className="mt-5 grid md:grid-cols-2 gap-4 items-start">
+                {/* Left: select amount */}
+                <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs uppercase tracking-widest font-medium mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>1. Select payment amount</p>
+                  {activeMethod.tiers && activeMethod.tiers.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {activeMethod.tiers.map((t) => {
+                        const isActive = parseFloat(amount) === parseFloat(t.amount);
+                        return (
+                          <button key={t.id} type="button" onClick={() => setAmount(String(parseFloat(t.amount)))}
+                            className="relative text-left px-4 py-3 rounded-2xl transition-all"
+                            style={{
+                              background: isActive ? "rgba(0,200,117,0.15)" : "rgba(255,255,255,0.03)",
+                              border: isActive ? "1.5px solid #00C875" : "1px solid rgba(255,255,255,0.08)",
+                            }}>
+                            {isActive && (
+                              <span className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#00C875" }}>
+                                <Check size={12} style={{ color: "#000" }} />
+                              </span>
+                            )}
+                            <div className="font-mono-tabular text-lg font-bold" style={{ color: isActive ? "#00C875" : "#F5F2EA" }}>Rs {parseFloat(t.amount).toFixed(0)}</div>
+                            <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Select this amount</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>No fixed amounts set up for this method yet.</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-4 text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                    <ShieldCheck size={14} style={{ color: "#00C875" }} /> Your payment is 100% secure with us.
+                  </div>
+                </div>
+
+                {/* Right: scan & pay */}
+                <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs uppercase tracking-widest font-medium mb-4 self-start" style={{ color: "rgba(245,242,234,0.4)" }}>2. Scan &amp; pay</p>
+                  {displayAccount?.qrCodeUrl ? (
+                    <>
+                      <div className="rounded-2xl p-3 mb-4" style={{ background: "#fff" }}>
+                        <img src={displayAccount.qrCodeUrl} alt="Payment QR code" className="w-44 h-44 object-contain" />
+                      </div>
+                      <div className="text-xs mb-1" style={{ color: "rgba(245,242,234,0.45)" }}>Amount to pay</div>
+                      <div className="font-mono-tabular text-2xl font-bold mb-2" style={{ color: "#F5F2EA" }}>Rs {amount ? parseFloat(amount).toFixed(0) : "—"}</div>
+                      <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>Scan the QR code using {METHOD_LABELS[selected] || selected}</div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-10 gap-2" style={{ color: "rgba(245,242,234,0.3)" }}>
+                      <QrCode size={40} />
+                      <p className="text-xs">No QR code available for this amount yet.</p>
+                    </div>
+                  )}
+                  {activeMethod.instructions && (
+                    <div className="w-full px-4 py-3 rounded-2xl text-xs leading-relaxed" style={{ background: "rgba(244,200,66,0.07)", border: "1px solid rgba(244,200,66,0.15)", color: "rgba(245,242,234,0.65)" }}>
+                      ℹ️ {activeMethod.instructions}
+                    </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="text-xs mb-1" style={{ color: "rgba(245,242,234,0.45)" }}>Account Number</div>
-                    <div className="font-mono-tabular text-lg font-bold" style={{ color: "#F5F2EA" }}>{displayAccount?.accountNumber || "—"}</div>
-                  </div>
-                  {displayAccount?.accountNumber && (
-                    <button onClick={() => copyText(displayAccount.accountNumber!, "acc")} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,200,117,0.12)", border: "1px solid rgba(0,200,117,0.2)" }}>
-                      {copied === "acc" ? <Check size={15} style={{ color: "#00C875" }} /> : <Copy size={15} style={{ color: "#00C875" }} />}
-                    </button>
-                  )}
-                </div>
-                <div className="mb-3">
-                  <div className="text-xs mb-1" style={{ color: "rgba(245,242,234,0.45)" }}>Account Name</div>
-                  <div className="font-medium text-sm" style={{ color: "#F5F2EA" }}>{displayAccount?.accountName || "—"}</div>
-                </div>
-                {displayAccount?.qrCodeUrl && (
-                  <div className="mb-3 flex flex-col items-center">
-                    <div className="text-xs mb-2 self-start" style={{ color: "rgba(245,242,234,0.45)" }}>Or scan to pay</div>
-                    <img src={displayAccount.qrCodeUrl} alt="Payment QR code" className="w-40 h-40 rounded-2xl object-contain p-2" style={{ background: "#fff" }} />
-                  </div>
-                )}
-                {activeMethod.instructions && (
-                  <div className="mt-3 px-4 py-3 rounded-2xl text-xs leading-relaxed" style={{ background: "rgba(244,200,66,0.07)", border: "1px solid rgba(244,200,66,0.15)", color: "rgba(245,242,234,0.65)" }}>
-                    ℹ️ {activeMethod.instructions}
-                  </div>
-                )}
               </div>
             )}
 

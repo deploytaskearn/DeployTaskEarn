@@ -194,11 +194,12 @@ async function purchasePlan(req, res) {
 }
 
 // User: activate the Custom Plan with a self-chosen amount. Unlike fixed
-// plans, this is a percentage-return investment: total earning = amount *
-// customReturnPercentage / 100, spread evenly across durationDays and then
-// across dailyTaskLimit tasks/day. The per-task rate is locked in at
-// purchase time so a later admin rate change never affects a plan already
-// bought. Repurchasing is allowed once the previous custom plan expires.
+// plans, this is a percentage-return investment: the user gets their amount
+// back PLUS customReturnPercentage/100 profit on top (total payout = amount
+// * (1 + pct/100)), spread evenly across durationDays and then across
+// dailyTaskLimit tasks/day. The per-task rate is locked in at purchase time
+// so a later admin rate change never affects a plan already bought.
+// Repurchasing is allowed once the previous custom plan expires.
 async function purchaseCustomPlan(req, res) {
   const userId = req.user.id;
   const amount = parseFloat(req.body?.amount);
@@ -230,8 +231,9 @@ async function purchaseCustomPlan(req, res) {
     const durationDays = plan.durationDays || 30;
     const dailyTaskLimit = plan.dailyTaskLimit || 1;
     const returnPct = parseFloat(plan.customReturnPercentage || 0) / 100;
-    const totalEarning = amount * returnPct;
-    const perDayEarning = totalEarning / durationDays;
+    const profit = amount * returnPct;
+    const totalPayout = amount + profit; // principal back + profit, not profit alone
+    const perDayEarning = totalPayout / durationDays;
     const perTaskEarning = perDayEarning / dailyTaskLimit;
 
     await walletService.debit(userId, amount, 'PLAN_PURCHASE', plan.id, `Subscribed to ${plan.name} (Rs ${amount.toLocaleString()})`);
@@ -266,7 +268,8 @@ async function purchaseCustomPlan(req, res) {
 
     res.status(201).json({
       userPlan,
-      totalEarning,
+      profit,
+      totalPayout,
       perDayEarning,
       perTaskEarning,
       message: 'Custom Plan activated successfully',

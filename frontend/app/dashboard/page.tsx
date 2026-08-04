@@ -671,8 +671,9 @@ export default function DashboardPage() {
             // The thumb drags smoothly (fine-grained raw value), but the amount
             // shown/used everywhere always snaps to the nearest Rs 500.
             const amount = Math.min(max, Math.max(min, Math.round(customAmount / 500) * 500));
-            const totalEarning = amount * (pct / 100);
-            const perDayEarning = totalEarning / (customPlan.durationDays || 30);
+            const profit = amount * (pct / 100);
+            const totalPayout = amount + profit; // your amount back + profit, not profit alone
+            const perDayEarning = totalPayout / (customPlan.durationDays || 30);
             const perMonthEarning = perDayEarning * 30;
             return (
               <div className="rounded-3xl p-5 mb-4" style={{ background: "linear-gradient(135deg, #1a1500 0%, #0a1a10 100%)", border: "1.5px solid rgba(244,200,66,0.32)" }}>
@@ -717,12 +718,12 @@ export default function DashboardPage() {
                     <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Per month</div>
                   </div>
                   <div className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(244,200,66,0.1)" }}>
-                    <div className="font-mono-tabular text-sm font-bold" style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</div>
-                    <div className="text-xs mt-0.5" style={{ color: "rgba(244,200,66,0.6)" }}>Total earning</div>
+                    <div className="font-mono-tabular text-sm font-bold" style={{ color: "#F4C842" }}>Rs{Math.round(totalPayout).toLocaleString()}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(244,200,66,0.6)" }}>Total payout</div>
                   </div>
                 </div>
                 <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>
-                  You deposit <strong style={{ color: "#F5F2EA" }}>Rs{amount.toLocaleString()}</strong> now and earn back <strong style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</strong> total by completing daily tasks over {customPlan.durationDays} days.
+                  You deposit <strong style={{ color: "#F5F2EA" }}>Rs{amount.toLocaleString()}</strong> now and get back <strong style={{ color: "#F4C842" }}>Rs{Math.round(totalPayout).toLocaleString()}</strong> total (your Rs{amount.toLocaleString()} plus Rs{Math.round(profit).toLocaleString()} profit) by completing daily tasks over {customPlan.durationDays} days.
                 </div>
 
                 <button onClick={() => handlePurchaseCustom(amount)} disabled={customPurchasing || amount < min}
