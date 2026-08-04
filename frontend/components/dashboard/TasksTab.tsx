@@ -85,24 +85,18 @@ function ProofModal({
   const [proofText, setProofText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // Picking a file just shows the preview instantly — compression happens
+  // later, only once the user actually taps Submit, so browsing/choosing a
+  // screenshot never itself shows a loading state.
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
-    if (!f) {
-      setFile(null);
-      setPreview(null);
-      return;
-    }
-    setCompressing(true);
-    const smaller = await compressImage(f);
-    setFile(smaller);
-    setPreview(URL.createObjectURL(smaller));
-    setCompressing(false);
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
   }
 
-  const canSubmit = file !== null && !compressing;
+  const canSubmit = file !== null;
 
   return (
     <div
@@ -168,7 +162,7 @@ function ProofModal({
           className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40"
           style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
         >
-          {compressing ? "Preparing image…" : "Submit Proof"}
+          Submit Proof
         </button>
       </div>
     </div>
@@ -218,8 +212,12 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     setSubmitting(s => ({ ...s, [task.id]: true }));
     setSubmitError(s => ({ ...s, [task.id]: "" }));
 
+    // Compress here (after Submit is tapped, not while picking/previewing the
+    // file) so choosing a screenshot always feels instant.
+    const compressedFile = proofFile ? await compressImage(proofFile) : null;
+
     const form = new FormData();
-    if (proofFile) form.append("proofFile", proofFile);
+    if (compressedFile) form.append("proofFile", compressedFile);
     if (proofText.trim()) form.append("proofText", proofText.trim());
 
     try {
