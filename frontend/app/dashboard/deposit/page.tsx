@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 import api from "@/lib/api";
 import { PaymentMethodConfig, Deposit } from "@/lib/types";
+import { compressImage } from "@/lib/imageCompress";
 import { ArrowLeft, CheckCircle2, AlertCircle, Upload, Copy, Check, Clock, XCircle } from "lucide-react";
 
 const METHOD_LABELS: Record<string, string> = {
@@ -64,17 +66,25 @@ export default function DepositPage() {
     setError("");
     setSubmitting(true);
     try {
+      // Payment-app screenshots are often several MB — compress before upload
+      // so large files don't silently exceed the server's size limit.
+      const screenshot = await compressImage(file);
       const fd = new FormData();
       fd.append("method", selected);
       fd.append("amount", amount);
       if (senderNo) fd.append("senderAccountNo", senderNo);
       if (txId) fd.append("transactionId", txId);
-      fd.append("screenshot", file);
-      await api.post("/deposits", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      fd.append("screenshot", screenshot);
+      await api.post("/deposits", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 45000 });
       setDone(true);
       api.get("/deposits/my").then((r) => setHistory(r.data)).catch(() => {});
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Submission failed. Try again.");
+      const msg = axios.isAxiosError(err)
+        ? err.code === "ECONNABORTED"
+          ? "Upload timed out. Check your connection and try again."
+          : err.response?.data?.error || "Submission failed. Try again."
+        : "Submission failed. Try again.";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -222,7 +232,7 @@ export default function DepositPage() {
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgba(245,242,234,0.5)" }}>Payment Screenshot *</span>
                   <div className="relative">
-                    <input type="file" accept="image/*,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    <input type="file" accept="image/jpeg,image/png,image/webp,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)}
                       className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
                     <div className="px-4 py-4 rounded-2xl flex flex-col items-center gap-2 text-sm text-center"
                       style={{ background: file ? "rgba(0,200,117,0.07)" : "rgba(255,255,255,0.03)", border: file ? "1.5px solid rgba(0,200,117,0.3)" : "1.5px dashed rgba(255,255,255,0.15)", color: file ? "#00C875" : "rgba(245,242,234,0.4)" }}>
