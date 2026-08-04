@@ -92,7 +92,14 @@ async function submitTask(req, res) {
     const taskId = req.params.id;
     const userId = req.user.id;
 
-    const taskResult = await pool.query('SELECT * FROM "Task" WHERE id = $1', [taskId]);
+    // A task with PlanTask rows belongs to one or more plans — only members of
+    // one of those plans may submit it, and their submission auto-approves and
+    // resets every night at midnight (Asia/Karachi). Free tasks (no PlanTask
+    // rows) are one-time-ever and still require manual admin review.
+    const [taskResult, planLinks] = await Promise.all([
+      pool.query('SELECT * FROM "Task" WHERE id = $1', [taskId]),
+      pool.query('SELECT "planId" FROM "PlanTask" WHERE "taskId" = $1', [taskId]),
+    ]);
     if (taskResult.rows.length === 0) return res.status(404).json({ error: 'Task not found' });
     const task = taskResult.rows[0];
 
@@ -100,11 +107,6 @@ async function submitTask(req, res) {
       return res.status(400).json({ error: 'Task is not currently active' });
     }
 
-    // A task with PlanTask rows belongs to one or more plans — only members of
-    // one of those plans may submit it, and their submission auto-approves and
-    // resets every night at midnight (Asia/Karachi). Free tasks (no PlanTask
-    // rows) are one-time-ever and still require manual admin review.
-    const planLinks = await pool.query('SELECT "planId" FROM "PlanTask" WHERE "taskId" = $1', [taskId]);
     const isPlanTask = planLinks.rows.length > 0;
 
     const existing = await pool.query(
@@ -150,10 +152,9 @@ async function submitTask(req, res) {
     );
 
     if (isPlanTask) {
-      await approveSubmission({ ...result.rows[0], rewardAmount: task.rewardAmount }, {});
-      const updated = await pool.query('SELECT * FROM "TaskSubmission" WHERE id = $1', [result.rows[0].id]);
+      const updated = await approveSubmission({ ...result.rows[0], rewardAmount: task.rewardAmount }, {});
       return res.status(201).json({
-        submission: updated.rows[0],
+        submission: updated,
         pending: false,
         message: 'Approved automatically! The reward has been added to your wallet.',
       });

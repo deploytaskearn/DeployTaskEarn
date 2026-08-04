@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import axios from "axios";
 import api from "@/lib/api";
 import { Task } from "@/lib/types";
-import { CheckCircle2, ExternalLink, Trophy, Upload, X as XIcon, ImageIcon, Download, Clock } from "lucide-react";
+import { CheckCircle2, ExternalLink, Trophy, Upload, X as XIcon, ImageIcon, Download, Clock, AlertCircle } from "lucide-react";
 
 const CARD = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" };
 
@@ -26,6 +27,35 @@ async function downloadImage(url: string, filename: string) {
   }
 }
 
+// Phone-camera screenshots are often 3-8MB, which is slow (and prone to
+// failing) to upload over weak mobile connections. Downscale + re-encode to
+// JPEG client-side before it ever hits the network, so the first upload
+// attempt is small and fast instead of relying on the user to retry with
+// the same oversized file.
+async function compressImage(file: File, maxDim = 1600, quality = 0.75): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size < 350 * 1024) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file; // any failure (e.g. unsupported format) → fall back to the original
+  }
+}
+
 // ── Proof modal ──────────────────────────────────────────────────────────────
 
 function ProofModal({
@@ -40,20 +70,24 @@ function ProofModal({
   const [proofText, setProofText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
-    setFile(f);
-    if (f) {
-      const url = URL.createObjectURL(f);
-      setPreview(url);
-    } else {
+    if (!f) {
+      setFile(null);
       setPreview(null);
+      return;
     }
+    setCompressing(true);
+    const smaller = await compressImage(f);
+    setFile(smaller);
+    setPreview(URL.createObjectURL(smaller));
+    setCompressing(false);
   }
 
-  const canSubmit = file !== null;
+  const canSubmit = file !== null && !compressing;
 
   return (
     <div
@@ -119,7 +153,7 @@ function ProofModal({
           className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40"
           style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
         >
-          Submit Proof
+          {compressing ? "Preparing image…" : "Submit Proof"}
         </button>
       </div>
     </div>
@@ -132,12 +166,17 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [submitError, setSubmitError] = useState<Record<string, string>>({});
 
   // Which task is waiting for proof
   const [proofTask, setProofTask] = useState<Task | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  // isInitial only shows the full-page "Loading tasks…" state on first mount —
+  // the 30s background refresh used to also flip this on, which blanked out
+  // the whole list and re-showed the loading screen every 30 seconds while
+  // someone was actively browsing/submitting tasks.
+  const load = useCallback((isInitial = false) => {
+    if (isInitial) setLoading(true);
     api.get<Task[]>("/tasks")
       .then((r) => {
         setTasks((prev) => {
@@ -148,18 +187,20 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
         });
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (isInitial) setLoading(false); });
   }, [onRewardEarned]);
 
   useEffect(() => {
-    load();
-    const t = setInterval(load, 30000);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching tasks on mount is the correct, standard pattern here
+    load(true);
+    const t = setInterval(() => load(false), 30000);
     return () => clearInterval(t);
   }, [load]);
 
   async function handleProofSubmit(task: Task, proofText: string, proofFile: File | null) {
     setProofTask(null);
     setSubmitting(s => ({ ...s, [task.id]: true }));
+    setSubmitError(s => ({ ...s, [task.id]: "" }));
 
     const form = new FormData();
     if (proofFile) form.append("proofFile", proofFile);
@@ -168,12 +209,19 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
     try {
       const res = await api.post(`/tasks/${task.id}/submit`, form, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 45000,
       });
       const status = res.data.pending ? "PENDING" : "APPROVED";
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, alreadySubmitted: true, submissionStatus: status } : t));
       if (status === "APPROVED") onRewardEarned?.();
-    } catch {
-      load();
+    } catch (err) {
+      const message = axios.isAxiosError(err)
+        ? err.code === "ECONNABORTED"
+          ? "Upload timed out. Check your connection and try again."
+          : err.response?.data?.error || "Submission failed. Please try again."
+        : "Submission failed. Please try again.";
+      setSubmitError(s => ({ ...s, [task.id]: message }));
+      load(false);
     } finally {
       setSubmitting(s => ({ ...s, [task.id]: false }));
     }
@@ -226,7 +274,8 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {freeTasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
-                onComplete={() => setProofTask(t)}
+                error={submitError[t.id]}
+                onComplete={() => { setSubmitError(s => ({ ...s, [t.id]: "" })); setProofTask(t); }}
               />
             ))}
           </div>
@@ -247,7 +296,8 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
             {group.tasks.map(t => (
               <TaskCard key={t.id} task={t}
                 submitting={!!submitting[t.id]}
-                onComplete={() => setProofTask(t)}
+                error={submitError[t.id]}
+                onComplete={() => { setSubmitError(s => ({ ...s, [t.id]: "" })); setProofTask(t); }}
               />
             ))}
           </div>
@@ -260,10 +310,11 @@ export function TasksTab({ onRewardEarned }: { onRewardEarned?: () => void }) {
 // ── Task card ─────────────────────────────────────────────────────────────────
 
 function TaskCard({
-  task, submitting, onComplete,
+  task, submitting, error, onComplete,
 }: {
   task: Task;
   submitting: boolean;
+  error?: string;
   onComplete: () => void;
 }) {
   const status = task.submissionStatus;
@@ -328,18 +379,25 @@ function TaskCard({
           <Clock size={15} /> Pending admin review
         </div>
       ) : (
-        <button
-          onClick={onComplete}
-          disabled={submitting}
-          className="inline-flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg disabled:opacity-50"
-          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-        >
-          {submitting ? (
-            <><span className="animate-spin inline-block">⟳</span> Submitting…</>
-          ) : (
-            <><Upload size={15} /> Submit Proof</>
+        <>
+          {error && (
+            <div className="flex items-center gap-2 text-xs px-3 py-2.5 rounded-lg" style={{ background: "rgba(232,99,58,0.1)", color: "#E8633A" }}>
+              <AlertCircle size={14} className="shrink-0" /> {error}
+            </div>
           )}
-        </button>
+          <button
+            onClick={onComplete}
+            disabled={submitting}
+            className="inline-flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg disabled:opacity-50"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+          >
+            {submitting ? (
+              <><span className="animate-spin inline-block">⟳</span> Submitting…</>
+            ) : (
+              <><Upload size={15} /> Submit Proof</>
+            )}
+          </button>
+        </>
       )}
     </div>
   );

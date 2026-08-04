@@ -86,9 +86,15 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().t
 // 404 handler for unmatched API routes
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route not found' }));
 
-// Generic error handler (e.g. multer file-size errors)
+// Generic error handler (e.g. multer file-size/type errors)
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message);
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: `File is too large (max ${process.env.MAX_UPLOAD_SIZE_MB || '5'}MB). Try a smaller image.` });
+  }
+  if (err.name === 'MulterError' || /^Only JPG, PNG, WEBP/.test(err.message || '')) {
+    return res.status(400).json({ error: err.message });
+  }
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
@@ -379,6 +385,9 @@ async function runMigrations() {
       "createdAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS "PaymentMethodTier_method_idx" ON "PaymentMethodTier"(method)`,
+    // Every task submission looks up PlanTask by taskId — was only covered by
+    // the (planId, taskId) composite index, forcing a full scan on this hot path.
+    `CREATE INDEX IF NOT EXISTS "PlanTask_taskId_idx" ON "PlanTask"("taskId")`,
     // New users must land 3 referrals who activate a plan within their first 20 days
     // (see src/jobs/referralHoldJob.js) or their account is auto-restricted.
     `ALTER TYPE "UserStatus" ADD VALUE IF NOT EXISTS 'HOLD'`,
