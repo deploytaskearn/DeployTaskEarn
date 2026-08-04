@@ -692,7 +692,7 @@ export default function DashboardPage() {
                   type="range"
                   min={min}
                   max={max}
-                  step={Math.max(1, Math.round((max - min) / 100))}
+                  step={500}
                   value={customAmount}
                   onChange={(e) => setCustomAmount(Number(e.target.value))}
                   className="w-full mb-1"
