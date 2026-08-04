@@ -53,6 +53,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     // Reset all user-specific state so previous session data never bleeds through
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting state on user-switch and fetching fresh data on mount is the correct, standard pattern here
     setMyPlan(null);
     setMyPlanIds([]);
     setPurchasedPlanIds([]);
@@ -70,7 +71,12 @@ export default function DashboardPage() {
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
     api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
     api.get<HelpVideo[]>("/cms/help-videos").then((r) => setHelpVideos(r.data ?? [])).catch(() => {});
-  }, [user]);
+    // Depend on the id, not the whole `user` object — refreshUser() (called every
+    // 15s in the background, and after every task/purchase) returns a fresh
+    // object each time even when nothing meaningful changed, which was wiping
+    // and re-fetching all of this dashboard state on every single refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   function refreshBalance() {
     refreshUser();
