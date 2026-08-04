@@ -35,6 +35,15 @@ async function listTasks(req, res) {
         pi."planName",
         pi."taskPlanId",
         (pi."taskId" IS NULL) as "isFreeTask",
+        -- Custom Plan tasks earn a per-user amount (scaled from the amount
+        -- they chose at purchase), not the task's own preset rewardAmount.
+        COALESCE(
+          (SELECT up."customPerTaskEarning" FROM "UserPlan" up
+           WHERE up."userId" = $1 AND up."planId"::text = pi."taskPlanId"
+             AND up.status = 'ACTIVE' AND (up."endDate" IS NULL OR up."endDate" > now())
+           LIMIT 1),
+          t."rewardAmount"
+        ) as "rewardAmount",
         (
           -- Plan tasks reset every night at midnight (Asia/Karachi); free tasks are one-time-ever.
           SELECT ts.status FROM "TaskSubmission" ts
@@ -131,15 +140,36 @@ async function submitTask(req, res) {
       return res.status(400).json({ error: 'Proof is required for this task (screenshot or description).' });
     }
 
+    let ownedUserPlan = null;
     if (isPlanTask) {
       const planIds = planLinks.rows.map((r) => r.planId);
       const ownsPlan = await pool.query(
-        `SELECT 1 FROM "UserPlan" WHERE "userId" = $1 AND "planId" = ANY($2::uuid[])
-         AND status = 'ACTIVE' AND ("endDate" IS NULL OR "endDate" > now()) LIMIT 1`,
+        `SELECT up.*, p."isCustom", p."dailyTaskLimit" FROM "UserPlan" up
+         JOIN "Plan" p ON p.id = up."planId"
+         WHERE up."userId" = $1 AND up."planId" = ANY($2::uuid[])
+           AND up.status = 'ACTIVE' AND (up."endDate" IS NULL OR up."endDate" > now())
+         ORDER BY up."createdAt" DESC LIMIT 1`,
         [userId, planIds]
       );
       if (ownsPlan.rows.length === 0) {
         return res.status(403).json({ error: 'You need an active plan to submit this task.' });
+      }
+      ownedUserPlan = ownsPlan.rows[0];
+
+      // Custom Plan's daily task allowance is a real cap (its per-task earning
+      // is only valid for that many tasks/day) — other plans have no such limit.
+      if (ownedUserPlan.isCustom) {
+        const limit = ownedUserPlan.dailyTaskLimit || 1;
+        const todayCount = await pool.query(
+          `SELECT COUNT(*) FROM "TaskSubmission" ts
+           JOIN "PlanTask" pt ON pt."taskId" = ts."taskId"
+           WHERE pt."planId" = $1 AND ts."userId" = $2
+             AND ts."createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi'`,
+          [ownedUserPlan.planId, userId]
+        );
+        if (parseInt(todayCount.rows[0].count) >= limit) {
+          return res.status(429).json({ error: `You've reached your daily limit of ${limit} tasks for the Custom Plan. New tasks unlock at 12:00 AM.` });
+        }
       }
     }
 
@@ -152,7 +182,10 @@ async function submitTask(req, res) {
     );
 
     if (isPlanTask) {
-      const updated = await approveSubmission({ ...result.rows[0], rewardAmount: task.rewardAmount }, {});
+      // A Custom Plan's earning scales with the amount the user chose at
+      // purchase time, not the task's own preset reward.
+      const effectiveReward = ownedUserPlan.isCustom ? ownedUserPlan.customPerTaskEarning : task.rewardAmount;
+      const updated = await approveSubmission({ ...result.rows[0], rewardAmount: effectiveReward }, {});
       return res.status(201).json({
         submission: updated,
         pending: false,

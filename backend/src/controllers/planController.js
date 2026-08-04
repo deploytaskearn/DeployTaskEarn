@@ -5,7 +5,7 @@ const walletService = require('../services/walletService');
 const planSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional(),
-  price: z.number().positive(),
+  price: z.number().min(0), // Custom Plan has no fixed price (0) — the user picks their own amount at purchase time
   durationDays: z.number().int().positive().default(30),
   maxEarnings: z.number().positive().optional().nullable(),
   dailyEarning: z.number().positive().optional().nullable(),
@@ -16,17 +16,36 @@ const planSchema = z.object({
   sortOrder: z.number().int().default(0),
   logoUrl: z.string().optional().nullable(),
   dailyTaskLimit: z.number().int().positive().optional().nullable(),
+  isCustom: z.boolean().optional().default(false),
+  customMinAmount: z.number().positive().optional().nullable(),
+  customMaxAmount: z.number().positive().optional().nullable(),
+  customReturnPercentage: z.number().positive().optional().nullable(),
 });
 
-// Public: list active plans
+// Public: list active fixed-price plans (the Custom Plan has its own endpoint
+// below since it needs slider/calculator treatment, not a plain price card).
 async function listPlans(req, res) {
   try {
     const result = await pool.query(
-      `SELECT * FROM "Plan" WHERE "isActive" = true ORDER BY "sortOrder" ASC, price ASC`
+      `SELECT * FROM "Plan" WHERE "isActive" = true AND "isCustom" = false ORDER BY "sortOrder" ASC, price ASC`
     );
     res.json(result.rows);
   } catch (err) {
     console.error('listPlans error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Public: the single active Custom Plan config (amount range + return % +
+// duration + daily task limit), or null if none is configured/active.
+async function getCustomPlan(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM "Plan" WHERE "isCustom" = true AND "isActive" = true LIMIT 1`
+    );
+    res.json(result.rows[0] || null);
+  } catch (err) {
+    console.error('getCustomPlan error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -47,11 +66,13 @@ async function createPlan(req, res) {
   try {
     const data = planSchema.parse(req.body);
     const result = await pool.query(
-      `INSERT INTO "Plan" (name, description, price, "durationDays", "maxEarnings", "dailyEarning", "maxUsers", features, "isPopular", "isActive", "sortOrder", "createdAt", "updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),now()) RETURNING *`,
+      `INSERT INTO "Plan" (name, description, price, "durationDays", "maxEarnings", "dailyEarning", "maxUsers", features, "isPopular", "isActive", "sortOrder", "logoUrl", "dailyTaskLimit", "isCustom", "customMinAmount", "customMaxAmount", "customReturnPercentage", "createdAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now(),now()) RETURNING *`,
       [data.name, data.description || null, data.price, data.durationDays,
        data.maxEarnings || null, data.dailyEarning || null, data.maxUsers || null,
-       JSON.stringify(data.features), data.isPopular, data.isActive, data.sortOrder]
+       JSON.stringify(data.features), data.isPopular, data.isActive, data.sortOrder,
+       data.logoUrl || null, data.dailyTaskLimit || null, data.isCustom || false,
+       data.customMinAmount || null, data.customMaxAmount || null, data.customReturnPercentage || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -168,6 +189,93 @@ async function purchasePlan(req, res) {
       return res.status(422).json({ error: 'Insufficient wallet balance. Please deposit first.' });
     }
     console.error('purchasePlan error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// User: activate the Custom Plan with a self-chosen amount. Unlike fixed
+// plans, this is a percentage-return investment: total earning = amount *
+// customReturnPercentage / 100, spread evenly across durationDays and then
+// across dailyTaskLimit tasks/day. The per-task rate is locked in at
+// purchase time so a later admin rate change never affects a plan already
+// bought. Repurchasing is allowed once the previous custom plan expires.
+async function purchaseCustomPlan(req, res) {
+  const userId = req.user.id;
+  const amount = parseFloat(req.body?.amount);
+
+  if (!amount || amount <= 0) return res.status(400).json({ error: 'A valid amount is required' });
+
+  try {
+    const planRes = await pool.query(`SELECT * FROM "Plan" WHERE "isCustom" = true AND "isActive" = true LIMIT 1`);
+    if (planRes.rows.length === 0) return res.status(404).json({ error: 'Custom Plan is not available right now.' });
+    const plan = planRes.rows[0];
+
+    const minAmount = parseFloat(plan.customMinAmount || 0);
+    const maxAmount = parseFloat(plan.customMaxAmount || 0);
+    if (amount < minAmount || amount > maxAmount) {
+      return res.status(400).json({ error: `Amount must be between Rs ${minAmount.toLocaleString()} and Rs ${maxAmount.toLocaleString()}.` });
+    }
+
+    // Only one active Custom Plan subscription at a time — repurchase is fine
+    // once the current one expires.
+    const activeExisting = await pool.query(
+      `SELECT id FROM "UserPlan" WHERE "userId" = $1 AND "planId" = $2
+       AND status = 'ACTIVE' AND ("endDate" IS NULL OR "endDate" > now()) LIMIT 1`,
+      [userId, plan.id]
+    );
+    if (activeExisting.rows.length > 0) {
+      return res.status(422).json({ error: 'You already have an active Custom Plan.' });
+    }
+
+    const durationDays = plan.durationDays || 30;
+    const dailyTaskLimit = plan.dailyTaskLimit || 1;
+    const returnPct = parseFloat(plan.customReturnPercentage || 0) / 100;
+    const totalEarning = amount * returnPct;
+    const perDayEarning = totalEarning / durationDays;
+    const perTaskEarning = perDayEarning / dailyTaskLimit;
+
+    await walletService.debit(userId, amount, 'PLAN_PURCHASE', plan.id, `Subscribed to ${plan.name} (Rs ${amount.toLocaleString()})`);
+
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    const upResult = await pool.query(
+      `INSERT INTO "UserPlan" ("userId","planId","amountPaid",status,"startDate","endDate","customAmount","customPerTaskEarning","createdAt")
+       VALUES ($1,$2,$3,'ACTIVE',now(),$4,$5,$6,now()) RETURNING *`,
+      [userId, plan.id, amount, endDate, amount, perTaskEarning]
+    );
+    const userPlan = upResult.rows[0];
+
+    await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [plan.id]);
+
+    // Pay referral bonus based on the amount actually paid (same rate/logic as fixed plans)
+    const userRes = await pool.query(`SELECT "referredById" FROM "User" WHERE id = $1`, [userId]);
+    const referredById = userRes.rows[0]?.referredById;
+    if (referredById) {
+      const referrerRes = await pool.query(`SELECT "referralBonusRate" FROM "User" WHERE id = $1`, [referredById]);
+      const customRate = referrerRes.rows[0]?.referralBonusRate;
+      const rate = customRate !== null && customRate !== undefined ? parseFloat(customRate) / 100 : 0.05;
+      const pct = Math.round(rate * 100);
+      const bonus = amount * rate;
+      await walletService.credit(
+        referredById, bonus, 'REFERRAL_PLAN_BONUS', userPlan.id,
+        `${pct}% referral bonus from ${plan.name} purchase`
+      );
+      await pool.query(`UPDATE "UserPlan" SET "referralBonusPaid" = true WHERE id = $1`, [userPlan.id]);
+    }
+
+    res.status(201).json({
+      userPlan,
+      totalEarning,
+      perDayEarning,
+      perTaskEarning,
+      message: 'Custom Plan activated successfully',
+    });
+  } catch (err) {
+    if (err.code === 'INSUFFICIENT_BALANCE') {
+      return res.status(422).json({ error: 'Insufficient wallet balance. Please deposit first.' });
+    }
+    console.error('purchaseCustomPlan error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -535,4 +643,4 @@ async function removePlanTask(req, res) {
   }
 }
 
-module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminGetReferralHoldOverview, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };
+module.exports = { listPlans, getCustomPlan, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, purchaseCustomPlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminGetReferralHoldOverview, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };

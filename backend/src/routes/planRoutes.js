@@ -5,12 +5,14 @@ const { requireAuth, requireAdmin, blockIfOnHold } = require('../middleware/auth
 
 // Public
 router.get('/', planController.listPlans);
+router.get('/custom', planController.getCustomPlan);
 
 // Authenticated user
 router.get('/my', requireAuth, planController.getMyPlan);
 router.get('/my-all', requireAuth, planController.getMyPlans);
 router.get('/my-purchased', requireAuth, planController.getMyPurchasedPlanIds);
 router.post('/purchase', requireAuth, blockIfOnHold, planController.purchasePlan);
+router.post('/purchase-custom', requireAuth, blockIfOnHold, planController.purchaseCustomPlan);
 router.get('/referral-stats', requireAuth, planController.getReferralStats);
 router.get('/referral-details', requireAuth, planController.getReferralDetails);
 

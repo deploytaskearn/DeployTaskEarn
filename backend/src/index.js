@@ -391,6 +391,15 @@ async function runMigrations() {
     // New users must land 3 referrals who activate a plan within their first 20 days
     // (see src/jobs/referralHoldJob.js) or their account is auto-restricted.
     `ALTER TYPE "UserStatus" ADD VALUE IF NOT EXISTS 'HOLD'`,
+    // Custom Plan: a single admin-configured plan where the user picks their own
+    // amount (via a slider) instead of a fixed price. Earnings scale with that
+    // chosen amount — see purchaseCustomPlan/submitTask in the plan/task controllers.
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "isCustom" BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "customMinAmount" DECIMAL(12,2)`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "customMaxAmount" DECIMAL(12,2)`,
+    `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "customReturnPercentage" DECIMAL(6,2)`,
+    `ALTER TABLE "UserPlan" ADD COLUMN IF NOT EXISTS "customAmount" DECIMAL(12,2)`,
+    `ALTER TABLE "UserPlan" ADD COLUMN IF NOT EXISTS "customPerTaskEarning" DECIMAL(12,2)`,
   ];
   for (const stmt of patches) {
     try {

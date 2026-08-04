@@ -23,6 +23,18 @@ const EMPTY: PlanForm = {
   logoUrl: "", dailyTaskLimit: "",
 };
 
+interface CustomPlanForm {
+  name: string; description: string; logoUrl: string; isActive: boolean;
+  customMinAmount: string; customMaxAmount: string; customReturnPercentage: string;
+  durationDays: string; dailyTaskLimit: string;
+}
+
+const CUSTOM_EMPTY: CustomPlanForm = {
+  name: "Custom Plan", description: "", logoUrl: "", isActive: false,
+  customMinAmount: "1000", customMaxAmount: "100000", customReturnPercentage: "70",
+  durationDays: "30", dailyTaskLimit: "5",
+};
+
 export default function AdminPlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
@@ -45,13 +57,69 @@ export default function AdminPlansPage() {
   const [taskSearch, setTaskSearch] = useState("");
   const [taskLoading, setTaskLoading] = useState(false);
 
+  // Custom Plan state — a single admin-configured plan (isCustom=true) where
+  // the user picks their own amount via a slider instead of a fixed price.
+  const [customPlan, setCustomPlan] = useState<Plan | null>(null);
+  const [customForm, setCustomForm] = useState<CustomPlanForm>({ ...CUSTOM_EMPTY });
+  const [customSaving, setCustomSaving] = useState(false);
+  const [customSaved, setCustomSaved] = useState(false);
+  const [customLogoUploading, setCustomLogoUploading] = useState(false);
+  const customLogoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => { load(); }, []);
 
   async function load() {
     try {
-      const r = await api.get("/plans/admin");
+      const r = await api.get<Plan[]>("/plans/admin");
       setPlans(r.data);
+      const cp = r.data.find((p) => p.isCustom) || null;
+      setCustomPlan(cp);
+      setCustomForm(cp ? {
+        name: cp.name, description: cp.description || "", logoUrl: cp.logoUrl || "",
+        isActive: cp.isActive,
+        customMinAmount: cp.customMinAmount || "1000",
+        customMaxAmount: cp.customMaxAmount || "100000",
+        customReturnPercentage: cp.customReturnPercentage || "70",
+        durationDays: String(cp.durationDays || 30),
+        dailyTaskLimit: cp.dailyTaskLimit ? String(cp.dailyTaskLimit) : "5",
+      } : { ...CUSTOM_EMPTY });
     } catch {}
+  }
+
+  async function uploadCustomLogo(file: File) {
+    setCustomLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("logo", file);
+      const r = await api.post("/admin/upload/logo", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setCustomForm((p) => ({ ...p, logoUrl: r.data.url }));
+    } catch { alert("Logo upload failed"); }
+    finally { setCustomLogoUploading(false); }
+  }
+
+  async function saveCustomPlan() {
+    setCustomSaving(true);
+    try {
+      const payload = {
+        name: customForm.name.trim() || "Custom Plan",
+        description: customForm.description || null,
+        logoUrl: customForm.logoUrl || null,
+        isActive: customForm.isActive,
+        isCustom: true,
+        price: 0,
+        durationDays: Number(customForm.durationDays) || 30,
+        dailyTaskLimit: customForm.dailyTaskLimit ? parseInt(customForm.dailyTaskLimit) : null,
+        customMinAmount: parseFloat(customForm.customMinAmount) || 0,
+        customMaxAmount: parseFloat(customForm.customMaxAmount) || 0,
+        customReturnPercentage: parseFloat(customForm.customReturnPercentage) || 0,
+      };
+      if (customPlan) await api.patch(`/plans/admin/${customPlan.id}`, payload);
+      else await api.post("/plans/admin", payload);
+      setCustomSaved(true);
+      setTimeout(() => setCustomSaved(false), 2000);
+      await load();
+    } catch { alert("Save failed"); }
+    finally { setCustomSaving(false); }
   }
 
   async function loadAllTasks() {
@@ -178,6 +246,167 @@ export default function AdminPlansPage() {
   return (
     <div>
       <AdminPageHeader title="Plans" subtitle="Manage earning plans, logos, tasks, and limits." />
+
+      {/* ── Custom Plan (user picks their own amount via a slider) ── */}
+      <div className="mb-8 rounded-2xl p-7" style={{ background: "rgba(244,200,66,0.05)", border: "1px solid rgba(244,200,66,0.25)" }}>
+        <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+          <h3 className="font-display text-lg" style={{ color: "var(--color-surface)" }}>Custom Plan</h3>
+          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "rgba(245,242,234,0.75)" }}>
+            <input type="checkbox" checked={customForm.isActive} onChange={(e) => setCustomForm((p) => ({ ...p, isActive: e.target.checked }))} className="accent-yellow-500" />
+            {customForm.isActive ? "Enabled — visible on user dashboard" : "Disabled"}
+          </label>
+        </div>
+        <p className="text-xs mb-5" style={{ color: "rgba(245,242,234,0.45)" }}>
+          Users pick any amount within your range via a slider. They earn back <strong>Return %</strong> of that amount
+          in total over the plan duration, spread across their daily tasks.
+        </p>
+
+        {/* Logo upload */}
+        <div className="mb-5">
+          <label className="block text-xs mb-2 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Logo (optional)</label>
+          <div className="flex items-center gap-4">
+            {customForm.logoUrl ? (
+              <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0" style={{ border: "1.5px solid rgba(255,255,255,0.12)" }}>
+                <img src={customForm.logoUrl} alt="Custom plan logo" className="w-full h-full object-cover" />
+                <button onClick={() => setCustomForm((p) => ({ ...p, logoUrl: "" }))}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }}>
+                  <X size={10} style={{ color: "#fff" }} />
+                </button>
+              </div>
+            ) : (
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.15)" }}>
+                <ImagePlus size={22} style={{ color: "rgba(245,242,234,0.3)" }} />
+              </div>
+            )}
+            <input ref={customLogoInputRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCustomLogo(f); }} />
+            <button onClick={() => customLogoInputRef.current?.click()} disabled={customLogoUploading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(245,242,234,0.8)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <ImagePlus size={14} /> {customLogoUploading ? "Uploading…" : customForm.logoUrl ? "Change logo" : "Upload logo"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Plan name</label>
+            <input value={customForm.name} onChange={(e) => setCustomForm((p) => ({ ...p, name: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Duration (days)</label>
+            <input type="number" min="1" value={customForm.durationDays} onChange={(e) => setCustomForm((p) => ({ ...p, durationDays: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Min amount (₨)</label>
+            <input type="number" min="1" value={customForm.customMinAmount} onChange={(e) => setCustomForm((p) => ({ ...p, customMinAmount: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Max amount (₨)</label>
+            <input type="number" min="1" value={customForm.customMaxAmount} onChange={(e) => setCustomForm((p) => ({ ...p, customMaxAmount: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Return % (total, over the whole duration)</label>
+            <input type="number" min="1" step="0.1" value={customForm.customReturnPercentage} onChange={(e) => setCustomForm((p) => ({ ...p, customReturnPercentage: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Daily task limit</label>
+            <input type="number" min="1" value={customForm.dailyTaskLimit} onChange={(e) => setCustomForm((p) => ({ ...p, dailyTaskLimit: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <label className="block text-xs mb-1.5 font-medium" style={{ color: "rgba(245,242,234,0.55)" }}>Description (optional)</label>
+          <textarea rows={2} value={customForm.description} onChange={(e) => setCustomForm((p) => ({ ...p, description: e.target.value }))}
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+        </div>
+
+        {/* Live preview of what a user would see at the max amount */}
+        {(() => {
+          const min = parseFloat(customForm.customMinAmount) || 0;
+          const max = parseFloat(customForm.customMaxAmount) || 0;
+          const pct = parseFloat(customForm.customReturnPercentage) || 0;
+          const dur = Number(customForm.durationDays) || 30;
+          const totalAtMax = max * (pct / 100);
+          const perDayAtMax = totalAtMax / dur;
+          return (
+            <div className="mb-5 px-4 py-3 rounded-xl text-xs" style={{ background: "rgba(244,200,66,0.08)", color: "rgba(245,242,234,0.65)" }}>
+              Example at max amount (₨{max.toLocaleString()}): total earning ≈ <strong style={{ color: "#F4C842" }}>₨{totalAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> over {dur} days
+              (≈ ₨{perDayAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}/day). Range: ₨{min.toLocaleString()} – ₨{max.toLocaleString()}.
+            </div>
+          );
+        })()}
+
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={saveCustomPlan} disabled={customSaving} className="px-6 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: customSaved ? "rgba(244,200,66,0.3)" : "#F4C842", color: "#000" }}>
+            {customSaving ? "Saving…" : customSaved ? "Saved ✓" : "Save Custom Plan"}
+          </button>
+          {customPlan && (
+            <button onClick={() => openTaskPanel(customPlan.id)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium"
+              style={{ background: openTaskPlanId === customPlan.id ? "rgba(100,160,255,0.18)" : "rgba(100,160,255,0.08)", color: "#7EB8FF", border: "1px solid rgba(100,160,255,0.2)" }}>
+              <ListChecks size={14} /> Tasks {planTasksMap[customPlan.id] ? `(${planTasksMap[customPlan.id].length})` : ""}
+              {openTaskPlanId === customPlan.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          )}
+        </div>
+
+        {/* ── Custom Plan task management panel (reuses the same logic as regular plans) ── */}
+        {customPlan && openTaskPlanId === customPlan.id && (
+          <div className="mt-4 rounded-xl border-t px-1 pb-1 pt-4" style={{ borderColor: "rgba(100,160,255,0.15)" }}>
+            {taskLoading ? (
+              <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>Loading…</div>
+            ) : (planTasksMap[customPlan.id] || []).length === 0 ? (
+              <div className="text-xs mb-4 py-3 px-4 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.03)", color: "rgba(245,242,234,0.35)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+                No tasks assigned yet. Add tasks below.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 mb-4">
+                {(planTasksMap[customPlan.id] || []).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(100,160,255,0.07)", border: "1px solid rgba(100,160,255,0.12)" }}>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate" style={{ color: "#F5F2EA" }}>{t.title}</div>
+                      {t.categoryName && <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{t.categoryName}</div>}
+                    </div>
+                    <button onClick={() => removeTaskFromPlan(customPlan.id, t.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(232,99,58,0.12)", border: "1px solid rgba(232,99,58,0.2)" }}>
+                      <Minus size={12} style={{ color: "#E8633A" }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="text-xs font-medium mb-2" style={{ color: "rgba(245,242,234,0.5)" }}>Add tasks to this plan</div>
+            <div className="relative mb-2">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(245,242,234,0.3)" }} />
+              <input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search tasks by name…"
+                className="w-full pl-8 pr-3 py-2 rounded-lg text-xs outline-none" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+            </div>
+            <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+              {availableTasks.length === 0 ? (
+                <div className="text-xs py-3 text-center" style={{ color: "rgba(245,242,234,0.35)" }}>{taskSearch ? "No matching tasks found." : "All tasks are already assigned."}</div>
+              ) : availableTasks.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate" style={{ color: "#F5F2EA" }}>{t.title}</div>
+                    {t.categoryName && <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{t.categoryName}</div>}
+                  </div>
+                  <button onClick={() => addTaskToPlan(customPlan.id, t.id)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(100,160,255,0.15)", border: "1px solid rgba(100,160,255,0.25)" }}>
+                    <Check size={12} style={{ color: "#7EB8FF" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex justify-end mb-6">
         <button onClick={startCreate} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold" style={{ background: "var(--color-accent)", color: "#000" }}>
@@ -314,8 +543,8 @@ export default function AdminPlansPage() {
         </div>
       )}
       <div className="flex flex-col gap-4">
-        {plans.length === 0 && <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No plans yet. Create one above.</div>}
-        {plans.map((p) => {
+        {plans.filter((p) => !p.isCustom).length === 0 && <div className="text-center py-16 text-sm" style={{ color: "rgba(245,242,234,0.4)" }}>No plans yet. Create one above.</div>}
+        {plans.filter((p) => !p.isCustom).map((p) => {
           const isTaskOpen = openTaskPlanId === p.id;
           const assignedTasks = planTasksMap[p.id] || [];
 

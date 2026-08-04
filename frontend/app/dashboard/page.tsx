@@ -30,6 +30,9 @@ export default function DashboardPage() {
   const [purchasedPlanIds, setPurchasedPlanIds] = useState<string[]>([]);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseMsg, setPurchaseMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [customPlan, setCustomPlan] = useState<Plan | null>(null);
+  const [customAmount, setCustomAmount] = useState<number>(0);
+  const [customPurchasing, setCustomPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSpin, setShowSpin] = useState(false);
   const [showMystery, setShowMystery] = useState(false);
@@ -68,6 +71,10 @@ export default function DashboardPage() {
       .finally(() => setReferralDetailsLoading(false));
     api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => setMyPlan(null));
     api.get("/plans").then((r) => setPlans(r.data)).catch(() => {});
+    api.get<Plan | null>("/plans/custom").then((r) => {
+      setCustomPlan(r.data);
+      if (r.data) setCustomAmount(parseFloat(r.data.customMinAmount || "0"));
+    }).catch(() => setCustomPlan(null));
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
     api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
     api.get<HelpVideo[]>("/cms/help-videos").then((r) => setHelpVideos(r.data ?? [])).catch(() => {});
@@ -114,6 +121,23 @@ export default function DashboardPage() {
       setPurchaseMsg({ type: "err", text: msg });
     } finally {
       setPurchasing(null);
+    }
+  }
+
+  async function handlePurchaseCustom() {
+    setCustomPurchasing(true);
+    setPurchaseMsg(null);
+    try {
+      await api.post("/plans/purchase-custom", { amount: customAmount });
+      setPurchaseMsg({ type: "ok", text: "Custom Plan activated! Tasks are now unlocked." });
+      api.get("/plans/my").then((r) => setMyPlan(r.data)).catch(() => {});
+      api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(r.data)).catch(() => {});
+      refreshBalance();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Purchase failed";
+      setPurchaseMsg({ type: "err", text: msg });
+    } finally {
+      setCustomPurchasing(false);
     }
   }
 
@@ -609,7 +633,7 @@ export default function DashboardPage() {
           <h2 className="font-display text-xl mb-4" style={{ color: "#F5F2EA" }}>Plans</h2>
 
           {/* Active plans banner — show all active plans */}
-          {myPlanIds.length > 0 && (
+          {(myPlanIds.length > 0 || (customPlan && myPlanIds.includes(customPlan.id))) && (
             <div className="flex flex-col gap-2 mb-4">
               {plans.filter(p => myPlanIds.includes(p.id)).map(p => (
                 <div key={p.id} className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "#0a2a18", border: "1px solid #1a4a2e" }}>
@@ -620,6 +644,15 @@ export default function DashboardPage() {
                   <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875" }}>ACTIVE</span>
                 </div>
               ))}
+              {customPlan && myPlanIds.includes(customPlan.id) && (
+                <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "#0a2a18", border: "1px solid #1a4a2e" }}>
+                  <Trophy size={16} style={{ color: "#00C875" }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold" style={{ color: "#00C875" }}>Active: {customPlan.name}</div>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(0,200,117,0.15)", color: "#00C875" }}>ACTIVE</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -629,6 +662,73 @@ export default function DashboardPage() {
               {purchaseMsg.text}
             </div>
           )}
+
+          {/* ── Custom Plan: slider + earnings calculator ── */}
+          {customPlan && !myPlanIds.includes(customPlan.id) && (() => {
+            const min = parseFloat(customPlan.customMinAmount || "0");
+            const max = parseFloat(customPlan.customMaxAmount || "0");
+            const pct = parseFloat(customPlan.customReturnPercentage || "0");
+            const totalEarning = customAmount * (pct / 100);
+            const perDayEarning = totalEarning / (customPlan.durationDays || 30);
+            const perMonthEarning = perDayEarning * 30;
+            return (
+              <div className="rounded-3xl p-5 mb-4" style={{ background: "linear-gradient(135deg, #1a1500 0%, #0a1a10 100%)", border: "1.5px solid rgba(244,200,66,0.32)" }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden" style={{ background: "rgba(244,200,66,0.12)", border: "1.5px solid rgba(244,200,66,0.28)" }}>
+                    {customPlan.logoUrl ? <img src={customPlan.logoUrl} alt={customPlan.name} className="w-full h-full object-cover" /> : <Trophy size={20} style={{ color: "#F4C842" }} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold" style={{ color: "#F5F2EA" }}>{customPlan.name}</div>
+                    <div className="text-xs" style={{ color: "rgba(244,200,66,0.7)" }}>{pct}% return over {customPlan.durationDays} days</div>
+                  </div>
+                </div>
+
+                {/* Slider */}
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>Choose your amount</span>
+                  <span className="font-mono-tabular text-lg font-bold" style={{ color: "#F4C842" }}>Rs{customAmount.toLocaleString()}</span>
+                </div>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={Math.max(1, Math.round((max - min) / 100))}
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(Number(e.target.value))}
+                  className="w-full mb-1"
+                  style={{ accentColor: "#F4C842" }}
+                />
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>Rs{min.toLocaleString()}</span>
+                  <span className="text-xs" style={{ color: "rgba(245,242,234,0.35)" }}>Rs{max.toLocaleString()}</span>
+                </div>
+
+                {/* Calculator */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <div className="font-mono-tabular text-sm font-bold" style={{ color: "#F5F2EA" }}>Rs{Math.round(perDayEarning).toLocaleString()}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Per day</div>
+                  </div>
+                  <div className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <div className="font-mono-tabular text-sm font-bold" style={{ color: "#F5F2EA" }}>Rs{Math.round(perMonthEarning).toLocaleString()}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.4)" }}>Per month</div>
+                  </div>
+                  <div className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(244,200,66,0.1)" }}>
+                    <div className="font-mono-tabular text-sm font-bold" style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(244,200,66,0.6)" }}>Total earning</div>
+                  </div>
+                </div>
+                <div className="text-xs mb-4" style={{ color: "rgba(245,242,234,0.4)" }}>
+                  You deposit <strong style={{ color: "#F5F2EA" }}>Rs{customAmount.toLocaleString()}</strong> now and earn back <strong style={{ color: "#F4C842" }}>Rs{Math.round(totalEarning).toLocaleString()}</strong> total by completing daily tasks over {customPlan.durationDays} days.
+                </div>
+
+                <button onClick={handlePurchaseCustom} disabled={customPurchasing || customAmount < min}
+                  style={{ width: "100%", padding: "14px 0", borderRadius: 16, background: "#F4C842", color: "#000", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", opacity: customPurchasing ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  {customPurchasing ? "Activating…" : <><span>Activate Custom Plan</span><ChevronRight size={16} /></>}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Plans list */}
           {plans.length === 0 ? (

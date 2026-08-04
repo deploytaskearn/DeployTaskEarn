@@ -151,6 +151,10 @@ export interface Plan {
   sortOrder: number;
   logoUrl?: string | null;
   dailyTaskLimit?: number | null;
+  isCustom?: boolean;
+  customMinAmount?: string | null;
+  customMaxAmount?: string | null;
+  customReturnPercentage?: string | null;
   createdAt: string;
 }
 
