@@ -243,6 +243,20 @@ export default function AdminPlansPage() {
     (t) => !assignedIds.has(t.id) && (!taskSearch || t.title.toLowerCase().includes(taskSearch.toLowerCase()))
   );
 
+  // Custom Plan tasks don't have their own fixed reward — each user's per-task
+  // earning is calculated automatically from the amount they choose (min..max)
+  // split across the daily task limit, so show that computed range here instead
+  // of asking the admin to set a price per task.
+  const customPerTask = (() => {
+    const min = parseFloat(customForm.customMinAmount) || 0;
+    const max = parseFloat(customForm.customMaxAmount) || 0;
+    const pct = parseFloat(customForm.customReturnPercentage) || 0;
+    const dur = Number(customForm.durationDays) || 30;
+    const limit = Number(customForm.dailyTaskLimit) || 1;
+    const perTask = (amount: number) => (amount * (pct / 100) / dur) / limit;
+    return { min: perTask(min), max: perTask(max) };
+  })();
+
   return (
     <div>
       <AdminPageHeader title="Plans" subtitle="Manage earning plans, logos, tasks, and limits." />
@@ -333,12 +347,16 @@ export default function AdminPlansPage() {
           const max = parseFloat(customForm.customMaxAmount) || 0;
           const pct = parseFloat(customForm.customReturnPercentage) || 0;
           const dur = Number(customForm.durationDays) || 30;
+          const limit = parseInt(customForm.dailyTaskLimit) || 1;
           const totalAtMax = max * (pct / 100);
           const perDayAtMax = totalAtMax / dur;
+          const perTaskAtMax = perDayAtMax / limit;
+          const perTaskAtMin = (min * (pct / 100) / dur) / limit;
           return (
             <div className="mb-5 px-4 py-3 rounded-xl text-xs" style={{ background: "rgba(244,200,66,0.08)", color: "rgba(245,242,234,0.65)" }}>
               Example at max amount (₨{max.toLocaleString()}): total earning ≈ <strong style={{ color: "#F4C842" }}>₨{totalAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> over {dur} days
               (≈ ₨{perDayAtMax.toLocaleString(undefined, { maximumFractionDigits: 0 })}/day). Range: ₨{min.toLocaleString()} – ₨{max.toLocaleString()}.
+              <br />Each task completion pays ≈ <strong style={{ color: "#F4C842" }}>₨{perTaskAtMin.toLocaleString(undefined, { maximumFractionDigits: 2 })} – ₨{perTaskAtMax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong> (auto-calculated from amount ÷ {limit} tasks/day, no manual price needed).
             </div>
           );
         })()}
@@ -372,7 +390,9 @@ export default function AdminPlansPage() {
                   <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(100,160,255,0.07)", border: "1px solid rgba(100,160,255,0.12)" }}>
                     <div className="min-w-0">
                       <div className="text-xs font-medium truncate" style={{ color: "#F5F2EA" }}>{t.title}</div>
-                      {t.categoryName && <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{t.categoryName}</div>}
+                      <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                        {t.categoryName && <>{t.categoryName} · </>}≈ ₨{customPerTask.min.toFixed(0)}–₨{customPerTask.max.toFixed(0)}/completion
+                      </div>
                     </div>
                     <button onClick={() => removeTaskFromPlan(customPlan.id, t.id)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(232,99,58,0.12)", border: "1px solid rgba(232,99,58,0.2)" }}>
@@ -395,7 +415,9 @@ export default function AdminPlansPage() {
                 <div key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                   <div className="min-w-0">
                     <div className="text-xs font-medium truncate" style={{ color: "#F5F2EA" }}>{t.title}</div>
-                    {t.categoryName && <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{t.categoryName}</div>}
+                    <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>
+                      {t.categoryName && <>{t.categoryName} · </>}≈ ₨{customPerTask.min.toFixed(0)}–₨{customPerTask.max.toFixed(0)}/completion
+                    </div>
                   </div>
                   <button onClick={() => addTaskToPlan(customPlan.id, t.id)}
                     className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(100,160,255,0.15)", border: "1px solid rgba(100,160,255,0.25)" }}>
