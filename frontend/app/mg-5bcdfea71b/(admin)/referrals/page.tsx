@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
-import { Users, Link2, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Users, Link2, RefreshCw, CheckCircle2, AlertCircle, Lock, ToggleLeft, ToggleRight } from "lucide-react";
 
 interface PaidRow {
   id: string;
@@ -35,10 +35,33 @@ interface Data {
   registered: RegisteredRow[];
 }
 
+interface HoldUserRow {
+  id: string;
+  name: string;
+  email: string;
+  status: "ACTIVE" | "HOLD" | "SUSPENDED" | "BANNED";
+  createdAt: string;
+  totalReferrals: string;
+  activatedReferrals: string;
+}
+
+interface HoldOverview {
+  enabled: boolean;
+  ruleStartDate: string;
+  windowDays: number;
+  requiredReferrals: number;
+  users: HoldUserRow[];
+}
+
 export default function ReferralsPage() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"paid" | "registered">("paid");
+  const [tab, setTab] = useState<"paid" | "registered" | "hold">("paid");
+
+  // 20-day hold rule overview
+  const [holdData, setHoldData] = useState<HoldOverview | null>(null);
+  const [holdLoading, setHoldLoading] = useState(true);
+  const [togglingHold, setTogglingHold] = useState(false);
 
   // Link modal state (for "registered" tab rows)
   const [linkModal, setLinkModal] = useState<RegisteredRow | null>(null);
@@ -86,7 +109,33 @@ export default function ReferralsPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadHold() {
+    setHoldLoading(true);
+    try {
+      const r = await api.get<HoldOverview>("/plans/admin/referral-hold/overview");
+      setHoldData(r.data);
+    } finally {
+      setHoldLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetching admin data on mount is the correct, standard pattern here
+    loadHold();
+  }, []);
+
+  async function toggleHoldRule() {
+    if (!holdData) return;
+    setTogglingHold(true);
+    try {
+      const next = !holdData.enabled;
+      await api.post("/cms/admin/settings", { key: "referral_hold_enabled", value: String(next) });
+      setHoldData({ ...holdData, enabled: next });
+    } finally {
+      setTogglingHold(false);
+    }
+  }
 
   async function handleLink() {
     if (!linkModal) return;
@@ -197,6 +246,7 @@ export default function ReferralsPage() {
         {([
           { id: "paid" as const, label: `Commissions Paid (${data?.paid.length ?? 0})` },
           { id: "registered" as const, label: `Registered via Referral (${data?.registered.length ?? 0})` },
+          { id: "hold" as const, label: "20-Day Hold Rule" },
         ]).map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="px-4 py-2 rounded-xl text-sm font-medium"
@@ -210,7 +260,109 @@ export default function ReferralsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {tab === "hold" ? (
+        holdLoading ? (
+          <div className="text-sm py-16 text-center" style={{ color: "rgba(245,242,234,0.4)" }}>Loading…</div>
+        ) : !holdData ? (
+          <div className="text-sm py-16 text-center" style={{ color: "rgba(245,242,234,0.4)" }}>Failed to load.</div>
+        ) : (
+          <div>
+            <div className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4 flex-wrap"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-center gap-3">
+                <Lock size={18} style={{ color: holdData.enabled ? "var(--color-accent)" : "rgba(245,242,234,0.4)" }} />
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--color-surface)" }}>
+                    3 referrals in {holdData.windowDays} days
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.45)" }}>
+                    New users (signed up on/after {new Date(holdData.ruleStartDate).toLocaleDateString()}) who don&apos;t land {holdData.requiredReferrals} referrals with an activated plan within {holdData.windowDays} days get put on hold automatically.
+                  </div>
+                </div>
+              </div>
+              <button onClick={toggleHoldRule} disabled={togglingHold}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 shrink-0"
+                style={{
+                  background: holdData.enabled ? "rgba(0,200,117,0.12)" : "rgba(255,255,255,0.06)",
+                  color: holdData.enabled ? "var(--color-accent)" : "rgba(245,242,234,0.6)",
+                  border: `1px solid ${holdData.enabled ? "rgba(0,200,117,0.25)" : "rgba(255,255,255,0.1)"}`,
+                }}>
+                {holdData.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                {togglingHold ? "…" : holdData.enabled ? "Enabled" : "Disabled"}
+              </button>
+            </div>
+
+            {holdData.users.length === 0 ? (
+              <div className="text-sm py-16 text-center" style={{ color: "rgba(245,242,234,0.4)" }}>No users yet.</div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+                      {["User", "Signed Up", "Progress", "Status"].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                          style={{ color: "rgba(245,242,234,0.4)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holdData.users.map((u, i) => {
+                      const created = new Date(u.createdAt);
+                      const ruleApplies = created >= new Date(holdData.ruleStartDate);
+                      const activated = parseInt(u.activatedReferrals);
+                      const met = activated >= holdData.requiredReferrals;
+                      const deadline = new Date(created.getTime() + holdData.windowDays * 24 * 60 * 60 * 1000);
+                      const daysLeft = Math.ceil((deadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+
+                      let statusLabel: string;
+                      let statusColor: string;
+                      if (u.status === "HOLD") {
+                        statusLabel = "On hold";
+                        statusColor = "#E8633A";
+                      } else if (!ruleApplies) {
+                        statusLabel = "N/A (existing user)";
+                        statusColor = "rgba(245,242,234,0.4)";
+                      } else if (met) {
+                        statusLabel = "Target met";
+                        statusColor = "var(--color-accent)";
+                      } else if (daysLeft > 0) {
+                        statusLabel = `${daysLeft}d left`;
+                        statusColor = daysLeft <= 5 ? "#F4C842" : "rgba(245,242,234,0.6)";
+                      } else {
+                        statusLabel = "Deadline passed";
+                        statusColor = "#F4C842";
+                      }
+
+                      return (
+                        <tr key={u.id} style={{ borderBottom: i < holdData.users.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold" style={{ color: "var(--color-surface)" }}>{u.name}</div>
+                            <div className="text-xs" style={{ color: "rgba(245,242,234,0.4)" }}>{u.email}</div>
+                          </td>
+                          <td className="px-4 py-3 text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>
+                            {created.toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-bold" style={{ color: met ? "var(--color-accent)" : "var(--color-surface)" }}>
+                              {activated}/{holdData.requiredReferrals}
+                            </span>
+                            <span className="text-xs ml-1" style={{ color: "rgba(245,242,234,0.4)" }}>activated</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ background: `${statusColor}22`, color: statusColor }}>
+                              {statusLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+      ) : loading ? (
         <div className="text-sm py-16 text-center" style={{ color: "rgba(245,242,234,0.4)" }}>Loading…</div>
       ) : !data ? (
         <div className="text-sm py-16 text-center" style={{ color: "rgba(245,242,234,0.4)" }}>Failed to load.</div>

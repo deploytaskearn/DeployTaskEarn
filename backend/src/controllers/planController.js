@@ -329,6 +329,38 @@ async function adminGetReferrals(req, res) {
   }
 }
 
+// Admin: overview of the "3 referrals in 20 days" hold rule — whether it's
+// enabled, and every user's progress against it.
+async function adminGetReferralHoldOverview(req, res) {
+  try {
+    const { isEnabled, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, REQUIRED_ACTIVATED_REFERRALS } = require('../jobs/referralHoldJob');
+
+    const [enabled, usersRes] = await Promise.all([
+      isEnabled(),
+      pool.query(
+        `SELECT u.id, u.name, u.email, u.status, u."createdAt",
+                (SELECT COUNT(*) FROM "User" r WHERE r."referredById" = u.id) as "totalReferrals",
+                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id
+                   AND EXISTS (SELECT 1 FROM "UserPlan" up WHERE up."userId" = r.id)) as "activatedReferrals"
+         FROM "User" u
+         WHERE u.role = 'USER'
+         ORDER BY u."createdAt" DESC`
+      ),
+    ]);
+
+    res.json({
+      enabled,
+      ruleStartDate: HOLD_RULE_START_DATE,
+      windowDays: HOLD_WINDOW_DAYS,
+      requiredReferrals: REQUIRED_ACTIVATED_REFERRALS,
+      users: usersRes.rows,
+    });
+  } catch (err) {
+    console.error('adminGetReferralHoldOverview error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // Admin: manually link referredById + credit missed bonus for all existing plans
 async function adminLinkReferral(req, res) {
   try {
@@ -503,4 +535,4 @@ async function removePlanTask(req, res) {
   }
 }
 
-module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };
+module.exports = { listPlans, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminGetReferralHoldOverview, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };

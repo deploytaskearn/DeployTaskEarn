@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { User, LedgerEntry } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2, History } from "lucide-react";
+import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2, History, Lock } from "lucide-react";
 
 interface AdminUserRow extends User {
-  status: "ACTIVE" | "SUSPENDED" | "BANNED";
+  status: "ACTIVE" | "HOLD" | "SUSPENDED" | "BANNED";
   referralBonusRate?: number | null;
 }
 
@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
     load();
   }, []);
 
-  async function updateStatus(id: string, status: "ACTIVE" | "SUSPENDED" | "BANNED") {
+  async function updateStatus(id: string, status: "ACTIVE" | "HOLD" | "SUSPENDED" | "BANNED") {
     setProcessingId(id);
     try {
       await api.patch(`/admin/users/${id}/status`, { status });
@@ -162,8 +162,8 @@ export default function AdminUsersPage() {
               <span
                 className="text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
                 style={{
-                  background: u.status === "ACTIVE" ? "rgba(63,168,118,0.1)" : "rgba(232,99,58,0.1)",
-                  color: u.status === "ACTIVE" ? "var(--color-accent-dim)" : "var(--color-alert)",
+                  background: u.status === "ACTIVE" ? "rgba(63,168,118,0.1)" : u.status === "HOLD" ? "rgba(244,200,66,0.12)" : "rgba(232,99,58,0.1)",
+                  color: u.status === "ACTIVE" ? "var(--color-accent-dim)" : u.status === "HOLD" ? "#F4C842" : "var(--color-alert)",
                 }}
               >
                 {u.status}
@@ -183,6 +183,11 @@ export default function AdminUsersPage() {
                   {u.status !== "ACTIVE" && (
                     <button disabled={processingId === u.id} onClick={() => updateStatus(u.id, "ACTIVE")} title="Activate" className="p-2 rounded-sm" style={{ color: "var(--color-accent-dim)" }}>
                       <CheckCircle2 size={16} />
+                    </button>
+                  )}
+                  {u.status !== "HOLD" && (
+                    <button disabled={processingId === u.id} onClick={() => updateStatus(u.id, "HOLD")} title="Put on hold" className="p-2 rounded-sm" style={{ color: "#F4C842" }}>
+                      <Lock size={16} />
                     </button>
                   )}
                   {u.status !== "SUSPENDED" && (

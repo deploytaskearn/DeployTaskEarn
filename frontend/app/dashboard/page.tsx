@@ -198,6 +198,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Account on hold — 3-referral requirement not met within 20 days */}
+          {user.status === "HOLD" && (
+            <div className="mt-4 rounded-3xl p-4 flex items-start gap-3"
+              style={{ background: "rgba(232,99,58,0.08)", border: "1px solid rgba(232,99,58,0.25)" }}>
+              <Lock size={18} style={{ color: "var(--color-alert)" }} className="shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold" style={{ color: "var(--color-alert)" }}>Account on hold</div>
+                <div className="text-xs mt-1 leading-relaxed" style={{ color: "rgba(245,242,234,0.6)" }}>
+                  Withdrawals, task submissions, and plan purchases are locked. Refer 3 people who activate a plan to unlock again.
+                </div>
+                <button onClick={() => setTab("referral")}
+                  className="text-xs font-semibold mt-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: "rgba(232,99,58,0.15)", color: "var(--color-alert)", border: "1px solid rgba(232,99,58,0.25)" }}>
+                  Invite friends ›
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* FBR registration badge */}
           {siteSettings.fbr_certificate_url && (
             <a href={siteSettings.fbr_certificate_url} target="_blank" rel="noopener noreferrer"

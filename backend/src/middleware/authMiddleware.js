@@ -51,4 +51,18 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin };
+/**
+ * Must be used AFTER requireAuth. Blocks withdrawals/plan purchases/task
+ * submissions for accounts on HOLD, while still allowing login/dashboard
+ * viewing (see src/jobs/referralHoldJob.js for how HOLD is set).
+ */
+function blockIfOnHold(req, res, next) {
+  if (req.user && req.user.status === 'HOLD') {
+    return res.status(403).json({
+      error: 'Your account is on hold. Get 3 referrals who activate a plan within your first 20 days to unlock this.',
+    });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, blockIfOnHold };

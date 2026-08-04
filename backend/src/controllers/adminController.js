@@ -54,8 +54,8 @@ async function listUsers(req, res) {
 async function updateUserStatus(req, res) {
   try {
     const { id } = req.params;
-    const { status } = req.body; // ACTIVE | SUSPENDED | BANNED
-    if (!['ACTIVE', 'SUSPENDED', 'BANNED'].includes(status)) {
+    const { status } = req.body; // ACTIVE | HOLD | SUSPENDED | BANNED
+    if (!['ACTIVE', 'HOLD', 'SUSPENDED', 'BANNED'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
     const result = await pool.query(

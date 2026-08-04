@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const withdrawalController = require('../controllers/withdrawalController');
-const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
+const { requireAuth, requireAdmin, blockIfOnHold } = require('../middleware/authMiddleware');
 
-router.post('/', requireAuth, withdrawalController.createWithdrawal);
+router.post('/', requireAuth, blockIfOnHold, withdrawalController.createWithdrawal);
 router.get('/my', requireAuth, withdrawalController.myWithdrawals);
 
 // Admin

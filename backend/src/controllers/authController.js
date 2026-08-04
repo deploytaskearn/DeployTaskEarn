@@ -248,7 +248,7 @@ async function getMe(req, res) {
       return res.status(403).json({ error: 'Admin accounts cannot access the user portal.' });
     }
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.role, u."referralCode", u."createdAt", u."emailVerifiedAt",
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u."referralCode", u."createdAt", u."emailVerifiedAt",
               w.balance, w.currency,
               COALESCE(uc.coins, 0) AS coins
        FROM "User" u

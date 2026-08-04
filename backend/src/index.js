@@ -20,6 +20,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const spinRoutes = require('./routes/spinRoutes');
 const mysteryRoutes = require('./routes/mysteryRoutes');
 const walletRoutes = require('./routes/walletRoutes');
+const { runReferralHoldCheck } = require('./jobs/referralHoldJob');
 
 const app = express();
 
@@ -378,6 +379,9 @@ async function runMigrations() {
       "createdAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS "PaymentMethodTier_method_idx" ON "PaymentMethodTier"(method)`,
+    // New users must land 3 referrals who activate a plan within their first 20 days
+    // (see src/jobs/referralHoldJob.js) or their account is auto-restricted.
+    `ALTER TYPE "UserStatus" ADD VALUE IF NOT EXISTS 'HOLD'`,
   ];
   for (const stmt of patches) {
     try {
@@ -433,6 +437,7 @@ async function runMigrations() {
     const defaultSettings = [
       ['site_name', 'TaskEarn'],
       ['site_logo', '/uploads/taskearn-logo-dark.svg'],
+      ['referral_hold_enabled', 'true'],
     ];
     for (const [k, v] of defaultSettings) {
       await pool.query(
@@ -570,6 +575,11 @@ runMigrations().then(() => {
   app.listen(PORT, () => {
     console.log(`Backend API running on http://localhost:${PORT}`);
   });
+
+  // No cron infra in this project — a boot-time run plus a 24h interval is
+  // enough for a once-daily check (see src/jobs/referralHoldJob.js).
+  runReferralHoldCheck();
+  setInterval(runReferralHoldCheck, 24 * 60 * 60 * 1000);
 });
 
 module.exports = app;
