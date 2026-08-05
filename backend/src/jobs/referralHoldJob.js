@@ -7,10 +7,13 @@ const HOLD_WINDOW_DAYS = 20;
 const REQUIRED_ACTIVATED_REFERRALS = 3;
 
 // A referral counts as "activated" once the referred user has ever bought
-// any plan (any UserPlan row, regardless of its current status).
+// any plan (any UserPlan row, regardless of its current status). The
+// designated test user's fake plan purchases never count toward this for
+// whoever "referred" them.
 const ACTIVATED_REFERRAL_COUNT_SQL = `(
   SELECT COUNT(DISTINCT r.id) FROM "User" r
   WHERE r."referredById" = u.id
+    AND NOT r."isTestUser"
     AND EXISTS (SELECT 1 FROM "UserPlan" up WHERE up."userId" = r.id)
 )`;
 
@@ -36,6 +39,7 @@ async function runReferralHoldCheck() {
     const held = await pool.query(
       `UPDATE "User" u SET status = 'HOLD', "updatedAt" = now()
        WHERE u.status = 'ACTIVE'
+         AND NOT u."isTestUser"
          AND u."createdAt" >= $1
          AND u."createdAt" <= now() - interval '${HOLD_WINDOW_DAYS} days'
          AND ${ACTIVATED_REFERRAL_COUNT_SQL} < $2

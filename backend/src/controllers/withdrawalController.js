@@ -25,10 +25,14 @@ async function getMinWithdrawal() {
  * User requests a withdrawal. We debit the wallet immediately
  * (reserving the funds) so the same balance can't be withdrawn
  * twice while a request is pending. If admin rejects, we refund.
+ *
+ * Exception: the designated test user (User.isTestUser) is marked PAID
+ * instantly and skips admin notifications — see createDeposit for why.
  */
 async function createWithdrawal(req, res) {
   try {
     const data = createWithdrawalSchema.parse(req.body);
+    const isTest = !!req.user.isTestUser;
 
     const minWithdrawal = await getMinWithdrawal();
     if (data.amount < minWithdrawal) {
@@ -36,10 +40,16 @@ async function createWithdrawal(req, res) {
     }
 
     const withdrawal = await pool.query(
-      `INSERT INTO "Withdrawal" (id, "userId", method, amount, "accountName", "accountNumber", status, "createdAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'PENDING', now())
+      `INSERT INTO "Withdrawal" (id, "userId", method, amount, "accountName", "accountNumber", status, "reviewNote", "reviewedAt", "paidAt", "createdAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
        RETURNING *`,
-      [req.user.id, data.method, data.amount, data.accountName, data.accountNumber]
+      [
+        req.user.id, data.method, data.amount, data.accountName, data.accountNumber,
+        isTest ? 'PAID' : 'PENDING',
+        isTest ? 'Auto-approved (test user)' : null,
+        isTest ? new Date() : null,
+        isTest ? new Date() : null,
+      ]
     );
 
     try {
@@ -48,7 +58,7 @@ async function createWithdrawal(req, res) {
         data.amount,
         'WITHDRAWAL',
         withdrawal.rows[0].id,
-        `Withdrawal request via ${data.method} (reserved pending admin approval)`
+        isTest ? `Test user auto-approved withdrawal via ${data.method}` : `Withdrawal request via ${data.method} (reserved pending admin approval)`
       );
     } catch (debitErr) {
       // Roll back the withdrawal record if the debit fails (insufficient funds)
@@ -59,15 +69,17 @@ async function createWithdrawal(req, res) {
       throw debitErr;
     }
 
-    notifyAdmin(
-      'WITHDRAWAL',
-      `New withdrawal request — Rs ${data.amount}`,
-      `${req.user.email} via ${data.method} — ${data.accountName} (${data.accountNumber})`,
-      '/withdrawals'
-    );
-    sendTelegramAlert(
-      `💸 <b>New Withdrawal Request</b>\nAmount: Rs ${data.amount}\nUser: ${req.user.email}\nMethod: ${data.method}\nAccount: ${data.accountName} (${data.accountNumber})`
-    );
+    if (!isTest) {
+      notifyAdmin(
+        'WITHDRAWAL',
+        `New withdrawal request — Rs ${data.amount}`,
+        `${req.user.email} via ${data.method} — ${data.accountName} (${data.accountNumber})`,
+        '/withdrawals'
+      );
+      sendTelegramAlert(
+        `💸 <b>New Withdrawal Request</b>\nAmount: Rs ${data.amount}\nUser: ${req.user.email}\nMethod: ${data.method}\nAccount: ${data.accountName} (${data.accountNumber})`
+      );
+    }
 
     res.status(201).json(withdrawal.rows[0]);
   } catch (err) {

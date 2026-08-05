@@ -51,29 +51,44 @@ async function adminGetAllMethods(req, res) {
  * and optionally a screenshot. Status starts PENDING — admin must
  * approve before the wallet is credited. This is intentionally
  * NOT auto-credited, since there's no live gateway verification yet.
+ *
+ * Exception: the designated test user (User.isTestUser) is auto-approved
+ * and credited instantly, and skips admin notifications — they need to
+ * exercise the full flow repeatedly without manual review each time, and
+ * without generating fake alerts for the admin.
  */
 async function createDeposit(req, res) {
   try {
     const data = createDepositSchema.parse(req.body);
     const screenshotUrl = req.file ? `/uploads/deposits/${req.file.filename}` : null;
+    const isTest = !!req.user.isTestUser;
 
     const result = await pool.query(
       `INSERT INTO "Deposit"
-        (id, "userId", method, amount, "senderAccountNo", "transactionId", "screenshotUrl", status, "createdAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'PENDING', now())
+        (id, "userId", method, amount, "senderAccountNo", "transactionId", "screenshotUrl", status, "reviewNote", "reviewedAt", "createdAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
        RETURNING *`,
-      [req.user.id, data.method, data.amount, data.senderAccountNo || null, data.transactionId || null, screenshotUrl]
+      [
+        req.user.id, data.method, data.amount, data.senderAccountNo || null, data.transactionId || null, screenshotUrl,
+        isTest ? 'APPROVED' : 'PENDING',
+        isTest ? 'Auto-approved (test user)' : null,
+        isTest ? new Date() : null,
+      ]
     );
 
-    notifyAdmin(
-      'DEPOSIT',
-      `New deposit request — Rs ${data.amount}`,
-      `${req.user.email} via ${data.method}`,
-      '/deposits'
-    );
-    sendTelegramAlert(
-      `💰 <b>New Deposit Request</b>\nAmount: Rs ${data.amount}\nUser: ${req.user.email}\nMethod: ${data.method}`
-    );
+    if (isTest) {
+      await walletService.credit(req.user.id, data.amount, 'DEPOSIT', result.rows[0].id, `Test user auto-approved ${data.method} deposit`);
+    } else {
+      notifyAdmin(
+        'DEPOSIT',
+        `New deposit request — Rs ${data.amount}`,
+        `${req.user.email} via ${data.method}`,
+        '/deposits'
+      );
+      sendTelegramAlert(
+        `💰 <b>New Deposit Request</b>\nAmount: Rs ${data.amount}\nUser: ${req.user.email}\nMethod: ${data.method}`
+      );
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (err) {

@@ -161,13 +161,16 @@ async function purchasePlan(req, res) {
     );
     const userPlan = upResult.rows[0];
 
-    // Increment currentUsers
-    await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [planId]);
+    // The test user's purchases don't consume a real maxUsers-limited slot,
+    // and never trigger a real referral bonus payout to a real referrer.
+    if (!req.user.isTestUser) {
+      await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [planId]);
+    }
 
     // Pay referral bonus if user was referred
     const userRes = await pool.query(`SELECT "referredById" FROM "User" WHERE id = $1`, [userId]);
     const referredById = userRes.rows[0]?.referredById;
-    if (referredById) {
+    if (referredById && !req.user.isTestUser) {
       const referrerRes = await pool.query(`SELECT "referralBonusRate" FROM "User" WHERE id = $1`, [referredById]);
       const customRate = referrerRes.rows[0]?.referralBonusRate;
       const rate = customRate !== null && customRate !== undefined ? parseFloat(customRate) / 100 : 0.05;
@@ -248,12 +251,16 @@ async function purchaseCustomPlan(req, res) {
     );
     const userPlan = upResult.rows[0];
 
-    await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [plan.id]);
+    // The test user's purchases don't consume a real maxUsers-limited slot,
+    // and never trigger a real referral bonus payout to a real referrer.
+    if (!req.user.isTestUser) {
+      await pool.query(`UPDATE "Plan" SET "currentUsers" = "currentUsers" + 1 WHERE id = $1`, [plan.id]);
+    }
 
     // Pay referral bonus based on the amount actually paid (same rate/logic as fixed plans)
     const userRes = await pool.query(`SELECT "referredById" FROM "User" WHERE id = $1`, [userId]);
     const referredById = userRes.rows[0]?.referredById;
-    if (referredById) {
+    if (referredById && !req.user.isTestUser) {
       const referrerRes = await pool.query(`SELECT "referralBonusRate" FROM "User" WHERE id = $1`, [referredById]);
       const customRate = referrerRes.rows[0]?.referralBonusRate;
       const rate = customRate !== null && customRate !== undefined ? parseFloat(customRate) / 100 : 0.05;
@@ -339,7 +346,7 @@ async function getReferralStats(req, res) {
     const bonusRate = rawRate !== null && rawRate !== undefined ? parseFloat(rawRate) : 5;
 
     const referralsRes = await pool.query(
-      `SELECT COUNT(*) as count FROM "User" WHERE "referredById" = $1`, [userId]
+      `SELECT COUNT(*) as count FROM "User" WHERE "referredById" = $1 AND NOT "isTestUser"`, [userId]
     );
     const bonusRes = await pool.query(
       `SELECT COALESCE(SUM(amount),0) as total FROM "LedgerEntry"
@@ -368,7 +375,7 @@ async function getReferralDetails(req, res) {
       `SELECT u.id, u.name, u."createdAt" as "joinedAt",
               COALESCE((SELECT COUNT(*) FROM "UserPlan" up WHERE up."userId" = u.id), 0) as "plansBought"
        FROM "User" u
-       WHERE u."referredById" = $1
+       WHERE u."referredById" = $1 AND NOT u."isTestUser"
        ORDER BY u."createdAt" DESC`,
       [userId]
     );
@@ -451,7 +458,7 @@ async function getMyReferralHoldStatus(req, res) {
       isEnabled(),
       pool.query(
         `SELECT u.status, u."createdAt",
-                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id
+                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id AND NOT r."isTestUser"
                    AND EXISTS (SELECT 1 FROM "UserPlan" up WHERE up."userId" = r.id)) as "activatedReferrals"
          FROM "User" u WHERE u.id = $1`,
         [req.user.id]
@@ -490,11 +497,11 @@ async function adminGetReferralHoldOverview(req, res) {
       isEnabled(),
       pool.query(
         `SELECT u.id, u.name, u.email, u.status, u."createdAt",
-                (SELECT COUNT(*) FROM "User" r WHERE r."referredById" = u.id) as "totalReferrals",
-                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id
+                (SELECT COUNT(*) FROM "User" r WHERE r."referredById" = u.id AND NOT r."isTestUser") as "totalReferrals",
+                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id AND NOT r."isTestUser"
                    AND EXISTS (SELECT 1 FROM "UserPlan" up WHERE up."userId" = r.id)) as "activatedReferrals"
          FROM "User" u
-         WHERE u.role = 'USER'
+         WHERE u.role = 'USER' AND NOT u."isTestUser"
          ORDER BY u."createdAt" DESC`
       ),
     ]);

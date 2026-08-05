@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/admin-api";
 import { User, LedgerEntry } from "@/lib/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2, History, Lock } from "lucide-react";
+import { Ban, CheckCircle2, PauseCircle, Percent, X, Check, Trash2, History, Lock, FlaskConical } from "lucide-react";
 
 interface AdminUserRow extends User {
   status: "ACTIVE" | "HOLD" | "SUSPENDED" | "BANNED";
@@ -62,6 +62,17 @@ export default function AdminUsersPage() {
     setProcessingId(id);
     try {
       await api.patch(`/admin/users/${id}/status`, { status });
+      load();
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
+  async function toggleTestUser(u: AdminUserRow) {
+    if (!u.isTestUser && !confirm(`Make ${u.name} the test account? Their deposits/withdrawals/tasks will auto-approve instantly, and any other user currently marked as test will be un-marked.`)) return;
+    setProcessingId(u.id);
+    try {
+      await api.patch(`/admin/users/${u.id}/test-user`, { isTestUser: !u.isTestUser });
       load();
     } finally {
       setProcessingId(null);
@@ -137,6 +148,11 @@ export default function AdminUsersPage() {
                   {u.role === "ADMIN" && (
                     <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(63,168,118,0.12)", color: "var(--color-accent-dim)" }}>ADMIN</span>
                   )}
+                  {u.isTestUser && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(126,184,255,0.12)", color: "#7EB8FF" }}>
+                      <FlaskConical size={11} /> TEST
+                    </span>
+                  )}
                   {u.referralBonusRate != null && (
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(244,200,66,0.12)", color: "#F4C842" }}>
                       {u.referralBonusRate}% ref
@@ -179,6 +195,15 @@ export default function AdminUsersPage() {
                     style={{ color: "#F4C842" }}
                   >
                     <Percent size={16} />
+                  </button>
+                  <button
+                    disabled={processingId === u.id}
+                    onClick={() => toggleTestUser(u)}
+                    title={u.isTestUser ? "Unmark as test user" : "Mark as the test user (only one at a time)"}
+                    className="p-2 rounded-sm"
+                    style={{ color: u.isTestUser ? "#7EB8FF" : "rgba(245,242,234,0.35)" }}
+                  >
+                    <FlaskConical size={16} />
                   </button>
                   {u.status !== "ACTIVE" && (
                     <button disabled={processingId === u.id} onClick={() => updateStatus(u.id, "ACTIVE")} title="Activate" className="p-2 rounded-sm" style={{ color: "var(--color-accent-dim)" }}>

@@ -7,6 +7,7 @@ export interface User {
   phone?: string | null;
   role: Role;
   status?: "ACTIVE" | "HOLD" | "SUSPENDED" | "BANNED";
+  isTestUser?: boolean;
   referralCode: string;
   balance?: string;
   currency?: string;

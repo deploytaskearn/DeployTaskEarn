@@ -193,6 +193,18 @@ async function submitTask(req, res) {
       });
     }
 
+    // The designated test user gets free (normally manually-reviewed) tasks
+    // auto-approved too, so they can exercise the full flow without needing
+    // an admin to review it each time — see createDeposit for the same pattern.
+    if (req.user.isTestUser) {
+      const updated = await approveSubmission({ ...result.rows[0], rewardAmount: task.rewardAmount }, {});
+      return res.status(201).json({
+        submission: updated,
+        pending: false,
+        message: 'Approved automatically (test user)! The reward has been added to your wallet.',
+      });
+    }
+
     notifyAdmin(
       'SUBMISSION',
       `New task submission — ${task.title}`,

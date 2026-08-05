@@ -6,7 +6,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck, Megaphone } from "lucide-react";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck, Megaphone, FlaskConical } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal, HelpVideo, Announcement, ReferralHoldStatus } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -238,6 +238,14 @@ export default function DashboardPage() {
                 </div>
               </div>
             </button>
+          )}
+
+          {/* Test-mode badge — only the designated test account sees this */}
+          {user.isTestUser && (
+            <div className="mt-4 flex items-center gap-2 px-4 py-2 rounded-2xl" style={{ background: "rgba(126,184,255,0.1)", border: "1px solid rgba(126,184,255,0.25)" }}>
+              <FlaskConical size={14} style={{ color: "#7EB8FF" }} />
+              <span className="text-xs font-semibold" style={{ color: "#7EB8FF" }}>Test mode — deposits, withdrawals, and tasks auto-approve instantly and don&apos;t affect real users.</span>
+            </div>
           )}
 
           {/* Wallet card */}

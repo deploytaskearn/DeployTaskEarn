@@ -8,11 +8,16 @@ const { callTelegram } = require('../utils/telegramNotify');
 
 async function dashboardStats(req, res) {
   try {
+    // The designated test user's fake deposits/withdrawals/plan activity are
+    // excluded from every real business total below, so QA testing never
+    // distorts what the admin sees.
     const [users, deposits, withdrawals, tasks, pendingSubmissions, pendingDeposits, pendingWithdrawals] =
       await Promise.all([
-        pool.query('SELECT COUNT(*) FROM "User" WHERE role = \'USER\''),
-        pool.query('SELECT COALESCE(SUM(amount),0) as total FROM "Deposit" WHERE status = \'APPROVED\''),
-        pool.query('SELECT COALESCE(SUM(amount),0) as total FROM "Withdrawal" WHERE status = \'PAID\''),
+        pool.query('SELECT COUNT(*) FROM "User" WHERE role = \'USER\' AND NOT "isTestUser"'),
+        pool.query(`SELECT COALESCE(SUM(d.amount),0) as total FROM "Deposit" d
+                     JOIN "User" u ON u.id = d."userId" WHERE d.status = 'APPROVED' AND NOT u."isTestUser"`),
+        pool.query(`SELECT COALESCE(SUM(w.amount),0) as total FROM "Withdrawal" w
+                     JOIN "User" u ON u.id = w."userId" WHERE w.status = 'PAID' AND NOT u."isTestUser"`),
         pool.query('SELECT COUNT(*) FROM "Task" WHERE status = \'ACTIVE\''),
         pool.query('SELECT COUNT(*) FROM "TaskSubmission" WHERE status = \'PENDING\''),
         pool.query('SELECT COUNT(*) FROM "Deposit" WHERE status = \'PENDING\''),
@@ -39,7 +44,7 @@ async function dashboardStats(req, res) {
 async function listUsers(req, res) {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u."referralBonusRate", u."createdAt",
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u."isTestUser", u."referralBonusRate", u."createdAt",
               w.balance, w.currency
        FROM "User" u LEFT JOIN "Wallet" w ON w."userId" = u.id
        ORDER BY u."createdAt" DESC`
@@ -47,6 +52,34 @@ async function listUsers(req, res) {
     res.json(result.rows);
   } catch (err) {
     console.error('listUsers error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Designates a single user as the test account: their deposits/withdrawals/
+// task submissions auto-approve instantly and their activity never counts
+// toward real business stats, plan slot limits, or referral bonuses/hold
+// checks (see depositController/withdrawalController/taskController/
+// planController/referralHoldJob). Only one test user exists at a time —
+// setting a new one clears the flag from any previous holder.
+async function setTestUser(req, res) {
+  try {
+    const { id } = req.params;
+    const { isTestUser } = req.body;
+    if (typeof isTestUser !== 'boolean') {
+      return res.status(400).json({ error: 'isTestUser must be true or false' });
+    }
+    if (isTestUser) {
+      await pool.query('UPDATE "User" SET "isTestUser" = false WHERE "isTestUser" = true AND id != $1', [id]);
+    }
+    const result = await pool.query(
+      'UPDATE "User" SET "isTestUser" = $1, "updatedAt" = now() WHERE id = $2 RETURNING id, name, email, "isTestUser"',
+      [isTestUser, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('setTestUser error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -470,6 +503,7 @@ module.exports = {
   dashboardStats,
   listUsers,
   updateUserStatus,
+  setTestUser,
   deleteUser,
   setReferralRate,
   adjustUserBalance,

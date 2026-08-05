@@ -19,6 +19,7 @@ router.post('/test-telegram-alert', adminController.testTelegramAlert);
 router.get('/users', adminController.listUsers);
 router.delete('/users/:id', adminController.deleteUser);
 router.patch('/users/:id/status', adminController.updateUserStatus);
+router.patch('/users/:id/test-user', adminController.setTestUser);
 router.patch('/users/:id/referral-rate', adminController.setReferralRate);
 router.post('/users/:id/adjust-balance', adminController.adjustUserBalance);
 router.get('/users/:id/history', adminController.getUserHistory);

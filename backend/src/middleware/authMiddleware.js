@@ -17,7 +17,7 @@ async function requireAuth(req, res, next) {
     const decoded = verifyToken(token);
 
     const result = await pool.query(
-      'SELECT id, name, email, role, status FROM "User" WHERE id = $1',
+      'SELECT id, name, email, role, status, "isTestUser" FROM "User" WHERE id = $1',
       [decoded.userId]
     );
 
