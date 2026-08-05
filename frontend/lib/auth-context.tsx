@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import axios from "axios";
 import api from "./api";
 import { User } from "./types";
 
@@ -29,9 +30,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get("/auth/me");
       setUser(res.data);
-    } catch {
-      localStorage.removeItem("taskearn_token");
-      setUser(null);
+    } catch (err) {
+      // This runs every 15s in the background — only a genuine 401 (token
+      // actually rejected) means the session is really over. A network
+      // hiccup, timeout, or transient 500 during that poll must never wipe
+      // out an otherwise-valid session and silently bounce the user to login.
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem("taskearn_token");
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }

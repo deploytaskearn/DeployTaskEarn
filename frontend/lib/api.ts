@@ -18,12 +18,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// On 401, clear stale token so the UI can redirect to login
+// On 401 (token actually rejected), clear the stale token so the UI can
+// redirect to login. 403 means "authenticated but not allowed to do this
+// specific thing" (banned, on hold, admin-only route, ...) — it must NOT
+// clear the token, or a single blocked action (e.g. withdrawing while on
+// hold) would silently log the user out of an otherwise-valid session.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    if ((status === 401 || status === 403) && typeof window !== "undefined") {
+    if (status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("taskearn_token");
     }
     return Promise.reject(error);
