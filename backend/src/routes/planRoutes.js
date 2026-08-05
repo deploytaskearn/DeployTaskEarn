@@ -15,6 +15,7 @@ router.post('/purchase', requireAuth, blockIfOnHold, planController.purchasePlan
 router.post('/purchase-custom', requireAuth, blockIfOnHold, planController.purchaseCustomPlan);
 router.get('/referral-stats', requireAuth, planController.getReferralStats);
 router.get('/referral-details', requireAuth, planController.getReferralDetails);
+router.get('/referral-hold-status', requireAuth, planController.getMyReferralHoldStatus);
 
 // Admin
 router.get('/admin/referrals', requireAuth, requireAdmin, planController.adminGetReferrals);

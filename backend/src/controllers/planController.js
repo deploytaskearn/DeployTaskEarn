@@ -440,6 +440,46 @@ async function adminGetReferrals(req, res) {
   }
 }
 
+// User: their own progress against the "3 referrals in 20 days" hold rule,
+// for a dashboard reminder banner/ticker. Cheap enough to call on every
+// dashboard load — single-row lookup, no admin-only data exposed.
+async function getMyReferralHoldStatus(req, res) {
+  try {
+    const { isEnabled, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, REQUIRED_ACTIVATED_REFERRALS } = require('../jobs/referralHoldJob');
+
+    const [enabled, userRes] = await Promise.all([
+      isEnabled(),
+      pool.query(
+        `SELECT u.status, u."createdAt",
+                (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id
+                   AND EXISTS (SELECT 1 FROM "UserPlan" up WHERE up."userId" = r.id)) as "activatedReferrals"
+         FROM "User" u WHERE u.id = $1`,
+        [req.user.id]
+      ),
+    ]);
+
+    const row = userRes.rows[0];
+    const createdAt = new Date(row.createdAt);
+    const ruleApplies = enabled && createdAt >= new Date(HOLD_RULE_START_DATE);
+    const activatedReferrals = parseInt(row.activatedReferrals, 10);
+    const deadline = new Date(createdAt.getTime() + HOLD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const daysRemaining = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+
+    res.json({
+      ruleApplies,
+      isOnHold: row.status === 'HOLD',
+      activatedReferrals,
+      requiredReferrals: REQUIRED_ACTIVATED_REFERRALS,
+      windowDays: HOLD_WINDOW_DAYS,
+      daysRemaining,
+      met: activatedReferrals >= REQUIRED_ACTIVATED_REFERRALS,
+    });
+  } catch (err) {
+    console.error('getMyReferralHoldStatus error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // Admin: overview of the "3 referrals in 20 days" hold rule — whether it's
 // enabled, and every user's progress against it.
 async function adminGetReferralHoldOverview(req, res) {
@@ -646,4 +686,4 @@ async function removePlanTask(req, res) {
   }
 }
 
-module.exports = { listPlans, getCustomPlan, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, purchaseCustomPlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, adminGetReferrals, adminGetReferralHoldOverview, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };
+module.exports = { listPlans, getCustomPlan, adminListPlans, createPlan, updatePlan, deletePlan, purchasePlan, purchaseCustomPlan, getMyPlan, getMyPlans, getMyPurchasedPlanIds, getReferralStats, getReferralDetails, getMyReferralHoldStatus, adminGetReferrals, adminGetReferralHoldOverview, adminLinkReferral, adminLinkReferralByEmail, getPlanTasks, addPlanTask, removePlanTask };

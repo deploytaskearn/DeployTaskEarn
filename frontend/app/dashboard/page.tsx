@@ -6,13 +6,14 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck } from "lucide-react";
-import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal, HelpVideo } from "@/lib/types";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck, Megaphone } from "lucide-react";
+import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal, HelpVideo, Announcement, ReferralHoldStatus } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useSiteSettings } from "@/lib/site-settings-context";
 import { HelpVideoThumb, HelpVideoCard } from "@/components/HelpVideoCard";
+import { AnnouncementCard } from "@/components/AnnouncementCard";
 
 type Tab = "main" | "tasks" | "referral" | "plans" | "menu" | "history" | "profile";
 type HistoryFilter = "pending" | "withdraw" | "deposit";
@@ -52,6 +53,8 @@ export default function DashboardPage() {
   const [referralDetailsLoading, setReferralDetailsLoading] = useState(false);
   const [helpVideos, setHelpVideos] = useState<HelpVideo[]>([]);
   const [activeVideo, setActiveVideo] = useState<HelpVideo | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [holdStatus, setHoldStatus] = useState<ReferralHoldStatus | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -78,6 +81,8 @@ export default function DashboardPage() {
     api.get<string[]>("/plans/my-all").then((r) => setMyPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setMyPlanIds([]));
     api.get<string[]>("/plans/my-purchased").then((r) => setPurchasedPlanIds(Array.isArray(r.data) ? r.data : [])).catch(() => setPurchasedPlanIds([]));
     api.get<HelpVideo[]>("/cms/help-videos").then((r) => setHelpVideos(r.data ?? [])).catch(() => {});
+    api.get<Announcement[]>("/cms/announcements").then((r) => setAnnouncements(r.data ?? [])).catch(() => {});
+    api.get<ReferralHoldStatus>("/plans/referral-hold-status").then((r) => setHoldStatus(r.data)).catch(() => setHoldStatus(null));
     // Depend on the id, not the whole `user` object — refreshUser() (called every
     // 15s in the background, and after every task/purchase) returns a fresh
     // object each time even when nothing meaningful changed, which was wiping
@@ -216,6 +221,24 @@ export default function DashboardPage() {
       {/* ── Main tab ── */}
       {tab === "main" && (
         <div className="px-4 pb-6 w-full max-w-2xl mx-auto">
+
+          {/* Referral-hold reminder ticker — only for new users still within
+              the 20-day window who haven't hit 3 activated referrals yet. */}
+          {holdStatus?.ruleApplies && !holdStatus.met && (
+            <button onClick={() => setTab("referral")}
+              className="mt-4 w-full rounded-2xl overflow-hidden text-left"
+              style={{ background: "linear-gradient(90deg, rgba(244,200,66,0.15), rgba(0,200,117,0.1))", border: "1px solid rgba(244,200,66,0.25)" }}>
+              <div className="py-2.5" style={{ overflow: "hidden" }}>
+                <div className="marquee-track">
+                  {[0, 1].map((i) => (
+                    <span key={i} className="text-xs font-semibold px-4" style={{ color: "#F4C842" }}>
+                      📢 Refer {holdStatus.requiredReferrals} friends who activate a plan within your first {holdStatus.windowDays} days to keep full access — you&apos;re at {holdStatus.activatedReferrals}/{holdStatus.requiredReferrals}, {holdStatus.daysRemaining} day{holdStatus.daysRemaining === 1 ? "" : "s"} left! Tap to invite ›
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </button>
+          )}
 
           {/* Wallet card */}
           <div className="mt-4 rounded-3xl p-6" style={{ background: "linear-gradient(135deg, #0d3d24 0%, #0a2a18 100%)", border: "1px solid rgba(0,200,117,0.2)" }}>
@@ -487,6 +510,21 @@ export default function DashboardPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                 {helpVideos.slice(0, 3).map((v) => (
                   <HelpVideoThumb key={v.id} video={v} onClick={() => setActiveVideo(v)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Announcements */}
+          {announcements.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Megaphone size={15} style={{ color: "#00C875" }} />
+                <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: "rgba(245,242,234,0.5)" }}>Announcements</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {announcements.map((a) => (
+                  <AnnouncementCard key={a.id} announcement={a} />
                 ))}
               </div>
             </div>

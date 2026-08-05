@@ -250,6 +250,26 @@ export interface HelpVideo {
   createdAt?: string;
 }
 
+export interface Announcement {
+  id: string;
+  title: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  isActive?: boolean;
+  sortOrder: number;
+  createdAt?: string;
+}
+
+export interface ReferralHoldStatus {
+  ruleApplies: boolean;
+  isOnHold: boolean;
+  activatedReferrals: number;
+  requiredReferrals: number;
+  windowDays: number;
+  daysRemaining: number;
+  met: boolean;
+}
+
 export interface MysteryBoxPrize {
   id: string;
   label: string;

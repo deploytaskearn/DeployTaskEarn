@@ -23,6 +23,7 @@ import {
   Ticket,
   Package,
   Video,
+  Megaphone,
 } from "lucide-react";
 
 const NAV = [
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/mg-5bcdfea71b/referrals", label: "Referrals", icon: GitBranch },
   { href: "/mg-5bcdfea71b/blog", label: "Blog", icon: Newspaper },
   { href: "/mg-5bcdfea71b/help-videos", label: "Help Videos", icon: Video },
+  { href: "/mg-5bcdfea71b/announcements", label: "Announcements", icon: Megaphone },
   { href: "/mg-5bcdfea71b/settings", label: "Payment settings", icon: Settings },
   { href: "/mg-5bcdfea71b/spin", label: "Spin Wheel", icon: Ticket },
   { href: "/mg-5bcdfea71b/mystery", label: "Mystery Box", icon: Package },

@@ -10,6 +10,7 @@ router.post('/contact', cmsController.submitContactMessage);
 router.get('/settings', cmsController.getSettings);
 router.get('/categories', cmsController.listCategories);
 router.get('/help-videos', cmsController.listHelpVideos);
+router.get('/announcements', cmsController.listAnnouncements);
 
 // Admin
 router.get('/admin/blog', requireAuth, requireAdmin, cmsController.adminListPosts);
@@ -28,5 +29,10 @@ router.get('/admin/help-videos', requireAuth, requireAdmin, cmsController.adminL
 router.post('/admin/help-videos', requireAuth, requireAdmin, cmsController.createHelpVideo);
 router.patch('/admin/help-videos/:id', requireAuth, requireAdmin, cmsController.updateHelpVideo);
 router.delete('/admin/help-videos/:id', requireAuth, requireAdmin, cmsController.deleteHelpVideo);
+
+router.get('/admin/announcements', requireAuth, requireAdmin, cmsController.adminListAnnouncements);
+router.post('/admin/announcements', requireAuth, requireAdmin, cmsController.createAnnouncement);
+router.patch('/admin/announcements/:id', requireAuth, requireAdmin, cmsController.updateAnnouncement);
+router.delete('/admin/announcements/:id', requireAuth, requireAdmin, cmsController.deleteAnnouncement);
 
 module.exports = router;

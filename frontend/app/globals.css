@@ -151,6 +151,17 @@ body {
 }
 .fade-up { animation: fadeUp 0.5s ease forwards; }
 
+/* ── News-ticker / marquee banner ── */
+@keyframes marquee {
+  0%   { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: inline-flex;
+  animation: marquee 18s linear infinite;
+  white-space: nowrap;
+}
+
 /* ── Scroll bar ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-bg); }

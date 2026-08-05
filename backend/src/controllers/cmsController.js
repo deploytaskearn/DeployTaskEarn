@@ -284,6 +284,89 @@ async function deleteHelpVideo(req, res) {
   }
 }
 
+// ───────────── ANNOUNCEMENTS ─────────────
+
+async function listAnnouncements(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT id, title, description, "imageUrl", "sortOrder", "createdAt" FROM "Announcement"
+       WHERE "isActive" = true ORDER BY "sortOrder" ASC, "createdAt" DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('listAnnouncements error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function adminListAnnouncements(req, res) {
+  try {
+    const result = await pool.query('SELECT * FROM "Announcement" ORDER BY "sortOrder" ASC, "createdAt" DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('adminListAnnouncements error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const announcementSchema = z.object({
+  title: z.string().min(2),
+  description: z.string().optional(),
+  imageUrl: z.string().url().optional().nullable(),
+  isActive: z.boolean().default(true),
+  sortOrder: z.coerce.number().int().default(0),
+});
+
+async function createAnnouncement(req, res) {
+  try {
+    const data = announcementSchema.parse(req.body);
+    const result = await pool.query(
+      `INSERT INTO "Announcement" (id, title, description, "imageUrl", "isActive", "sortOrder", "createdAt", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
+       RETURNING *`,
+      [data.title, data.description || null, data.imageUrl || null, data.isActive, data.sortOrder]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    console.error('createAnnouncement error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function updateAnnouncement(req, res) {
+  try {
+    const { id } = req.params;
+    const data = announcementSchema.partial().parse(req.body);
+    const fields = Object.keys(data);
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    const setClauses = fields.map((f, i) => `"${f}" = $${i + 1}`).join(', ');
+    const values = fields.map((f) => data[f]);
+
+    const result = await pool.query(
+      `UPDATE "Announcement" SET ${setClauses}, "updatedAt" = now() WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Announcement not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: err.errors });
+    console.error('updateAnnouncement error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function deleteAnnouncement(req, res) {
+  try {
+    await pool.query('DELETE FROM "Announcement" WHERE id = $1', [req.params.id]);
+    res.status(204).send();
+  } catch (err) {
+    console.error('deleteAnnouncement error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // ───────────── TASK CATEGORIES ─────────────
 
 async function listCategories(req, res) {
@@ -332,4 +415,9 @@ module.exports = {
   createHelpVideo,
   updateHelpVideo,
   deleteHelpVideo,
+  listAnnouncements,
+  adminListAnnouncements,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
 };

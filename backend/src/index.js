@@ -400,6 +400,16 @@ async function runMigrations() {
     `ALTER TABLE "Plan" ADD COLUMN IF NOT EXISTS "customReturnPercentage" DECIMAL(6,2)`,
     `ALTER TABLE "UserPlan" ADD COLUMN IF NOT EXISTS "customAmount" DECIMAL(12,2)`,
     `ALTER TABLE "UserPlan" ADD COLUMN IF NOT EXISTS "customPerTaskEarning" DECIMAL(12,2)`,
+    `CREATE TABLE IF NOT EXISTS "Announcement" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      description TEXT,
+      "imageUrl" TEXT,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
   ];
   for (const stmt of patches) {
     try {
