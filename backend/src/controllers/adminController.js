@@ -197,7 +197,7 @@ async function createTask(req, res) {
         categoryId = existing.rows[0].id;
       } else {
         const created = await pool.query(
-          'INSERT INTO "TaskCategory" (id, name, slug, "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, now(), now()) RETURNING id',
+          'INSERT INTO "TaskCategory" (id, name, slug, "createdAt") VALUES (gen_random_uuid(), $1, $2, now()) RETURNING id',
           [name, name.toLowerCase().replace(/\s+/g, '-')]
         );
         categoryId = created.rows[0].id;
