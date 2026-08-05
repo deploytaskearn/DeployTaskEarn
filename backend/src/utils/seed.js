@@ -12,7 +12,7 @@ async function seed() {
   let adminId;
   if (existingAdmin.rows.length === 0) {
     const passwordHash = await hashPassword('Admin@12345');
-    const referralCode = generateReferralCode('Admin');
+    const referralCode = generateReferralCode();
     const result = await pool.query(
       `INSERT INTO "User" (id, name, email, "passwordHash", role, "referralCode", "createdAt", "updatedAt")
        VALUES (gen_random_uuid(), 'Site Admin', $1, $2, 'ADMIN', $3, now(), now())

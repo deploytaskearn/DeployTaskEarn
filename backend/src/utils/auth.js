@@ -21,10 +21,17 @@ function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-function generateReferralCode(name) {
-  // Extract first name (first word) and uppercase it
-  const firstName = (name || '').trim().split(/\s+/)[0];
-  return firstName.replace(/[^a-zA-Z]/g, '').toUpperCase() || 'USER';
+// Excludes visually-confusable characters (0/O, 1/I) so a code is easy to
+// read aloud/type correctly. Deliberately NOT derived from the user's name —
+// codes must not reveal who a code belongs to.
+const REFERRAL_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateReferralCode() {
+  let code = '';
+  for (let i = 0; i < 7; i++) {
+    code += REFERRAL_CODE_CHARS[Math.floor(Math.random() * REFERRAL_CODE_CHARS.length)];
+  }
+  return code;
 }
 
 module.exports = {

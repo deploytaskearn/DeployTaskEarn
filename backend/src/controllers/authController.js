@@ -95,15 +95,13 @@ async function register(req, res) {
 
     const passwordHash = await hashPassword(data.password);
 
-    // Generate referral code from first name, add number suffix if taken (ALI, ALI1, ALI2 …)
-    const base = generateReferralCode(data.name);
-    let referralCode = base;
-    let attempt = 1;
+    // Random referral code, unrelated to the user's name — regenerate on the
+    // rare collision instead of appending a suffix.
+    let referralCode = generateReferralCode();
     while (true) {
       const taken = await pool.query('SELECT 1 FROM "User" WHERE "referralCode" = $1', [referralCode]);
       if (taken.rows.length === 0) break;
-      referralCode = `${base}${attempt}`;
-      attempt++;
+      referralCode = generateReferralCode();
     }
 
     const result = await pool.query(

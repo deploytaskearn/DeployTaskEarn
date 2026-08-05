@@ -426,6 +426,35 @@ async function runMigrations() {
   }
   console.log('Patch migration completed');
 
+  // One-time backfill: older accounts had name-derived referral codes (e.g.
+  // "ALI", "ALI1") — replace every existing user's code with a random one so
+  // a code never reveals who it belongs to. Guarded so this only runs once.
+  try {
+    const already = await pool.query(`SELECT 1 FROM "SiteSetting" WHERE key='referral_codes_randomized_v1'`);
+    if (already.rows.length === 0) {
+      const { generateReferralCode } = require('./utils/auth');
+      const users = await pool.query(`SELECT id FROM "User"`);
+      for (const u of users.rows) {
+        let code = generateReferralCode();
+        let attempts = 0;
+        while (attempts < 20) {
+          const taken = await pool.query(`SELECT 1 FROM "User" WHERE "referralCode" = $1 AND id != $2`, [code, u.id]);
+          if (taken.rows.length === 0) break;
+          code = generateReferralCode();
+          attempts++;
+        }
+        await pool.query(`UPDATE "User" SET "referralCode" = $1 WHERE id = $2`, [code, u.id]);
+      }
+      await pool.query(
+        `INSERT INTO "SiteSetting" (key, value, "updatedAt") VALUES ('referral_codes_randomized_v1', '1', now())
+         ON CONFLICT (key) DO UPDATE SET value='1', "updatedAt"=now()`
+      );
+      console.log(`Regenerated referral codes for ${users.rows.length} existing user(s)`);
+    }
+  } catch (err) {
+    console.error('Referral code backfill warning:', err.message);
+  }
+
   // Seed admin user if not exists
   try {
     const existing = await pool.query('SELECT id FROM "User" WHERE email = $1', ['admin@taskearn.local']);
