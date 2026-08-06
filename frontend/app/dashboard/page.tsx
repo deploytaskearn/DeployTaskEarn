@@ -6,7 +6,7 @@ import { useRequireAuth } from "@/lib/useRequireAuth";
 import { TasksTab } from "@/components/dashboard/TasksTab";
 import { SpinWheelModal } from "@/components/dashboard/SpinWheelModal";
 import { MysteryBoxModal } from "@/components/dashboard/MysteryBoxModal";
-import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck, Megaphone, FlaskConical } from "lucide-react";
+import { Home, ListChecks, Users, Trophy, Menu, Banknote, ArrowUpFromLine, Copy, Check, Lock, Gift, ChevronRight, LogOut, CheckCircle2, History, Clock, ChevronLeft, UserCircle, Phone, Mail, Pencil, X as XIcon, Save, PlayCircle, ShieldCheck, Megaphone, FlaskConical, MessageCircle } from "lucide-react";
 import { ReferralStats, UserPlan, Plan, TaskSubmission, Deposit, Withdrawal, HelpVideo, Announcement, ReferralHoldStatus } from "@/lib/types";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -55,6 +55,19 @@ export default function DashboardPage() {
   const [activeVideo, setActiveVideo] = useState<HelpVideo | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [holdStatus, setHoldStatus] = useState<ReferralHoldStatus | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
+
+  // Poll for unread support replies so the Menu badge stays fresh even if
+  // the user never opens the chat page this session.
+  useEffect(() => {
+    if (!user) return;
+    function poll() {
+      api.get<{ count: number }>("/chat/my-unread-count").then((r) => setChatUnread(r.data.count)).catch(() => {});
+    }
+    poll();
+    const interval = setInterval(poll, 15000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -884,6 +897,13 @@ export default function DashboardPage() {
             <button onClick={() => router.push("/dashboard/help")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <PlayCircle size={18} style={{ color: "#00C875" }} />
               <span className="text-sm font-medium">Help & Tutorials</span>
+            </button>
+            <button onClick={() => router.push("/dashboard/chat")} className="flex items-center gap-3 px-5 py-4 rounded-2xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
+              <MessageCircle size={18} style={{ color: "#00C875" }} />
+              <span className="text-sm font-medium flex-1">Chat with Support</span>
+              {chatUnread > 0 && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "#00C875", color: "#000" }}>{chatUnread}</span>
+              )}
             </button>
             <Link href="/" className="flex items-center gap-3 px-5 py-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F2EA" }}>
               <Home size={18} style={{ color: "#00C875" }} />

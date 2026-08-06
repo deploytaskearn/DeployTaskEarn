@@ -20,6 +20,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const spinRoutes = require('./routes/spinRoutes');
 const mysteryRoutes = require('./routes/mysteryRoutes');
 const walletRoutes = require('./routes/walletRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const { runReferralHoldCheck } = require('./jobs/referralHoldJob');
 
 const app = express();
@@ -80,6 +81,7 @@ app.use('/api/admin/upload', uploadRoutes);
 app.use('/api/spin', spinRoutes);
 app.use('/api/mystery', mysteryRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
@@ -416,6 +418,19 @@ async function runMigrations() {
     // See depositController/withdrawalController/taskController/planController
     // and referralHoldJob for the isTestUser branches.
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isTestUser" BOOLEAN NOT NULL DEFAULT false`,
+    // Support chat — one thread per user with the admin team. "isRead" is
+    // relative to the recipient: a USER message is unread until an admin
+    // views the thread, an ADMIN message is unread until the user does.
+    `CREATE TABLE IF NOT EXISTS "ChatMessage" (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+      "senderRole" TEXT NOT NULL DEFAULT 'USER',
+      message TEXT NOT NULL,
+      "isRead" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS "ChatMessage_userId_idx" ON "ChatMessage"("userId")`,
+    `CREATE INDEX IF NOT EXISTS "ChatMessage_userId_createdAt_idx" ON "ChatMessage"("userId","createdAt")`,
   ];
   for (const stmt of patches) {
     try {

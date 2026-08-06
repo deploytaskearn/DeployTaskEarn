@@ -24,6 +24,7 @@ import {
   Package,
   Video,
   Megaphone,
+  MessageCircle,
 } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ const NAV = [
   { href: "/mg-5bcdfea71b/withdrawals", label: "Withdrawals", icon: ArrowUpFromLine },
   { href: "/mg-5bcdfea71b/tasks", label: "Tasks", icon: ListChecks },
   { href: "/mg-5bcdfea71b/submissions", label: "Submissions", icon: ClipboardCheck },
+  { href: "/mg-5bcdfea71b/chat", label: "Support Chat", icon: MessageCircle },
   { href: "/mg-5bcdfea71b/users", label: "Users", icon: Users },
   { href: "/mg-5bcdfea71b/referrals", label: "Referrals", icon: GitBranch },
   { href: "/mg-5bcdfea71b/blog", label: "Blog", icon: Newspaper },

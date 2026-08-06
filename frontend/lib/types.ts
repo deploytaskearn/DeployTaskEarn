@@ -251,6 +251,25 @@ export interface HelpVideo {
   createdAt?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  senderRole: "USER" | "ADMIN";
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface ChatConversation {
+  userId: string;
+  name: string;
+  email: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  lastSenderRole: "USER" | "ADMIN";
+  unreadCount: number;
+}
+
 export interface Announcement {
   id: string;
   title: string;
