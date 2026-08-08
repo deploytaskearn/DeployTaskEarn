@@ -452,10 +452,11 @@ async function adminGetReferrals(req, res) {
 // dashboard load — single-row lookup, no admin-only data exposed.
 async function getMyReferralHoldStatus(req, res) {
   try {
-    const { isEnabled, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, REQUIRED_ACTIVATED_REFERRALS } = require('../jobs/referralHoldJob');
+    const { isEnabled, getRequiredReferrals, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS } = require('../jobs/referralHoldJob');
 
-    const [enabled, userRes] = await Promise.all([
+    const [enabled, requiredReferrals, userRes] = await Promise.all([
       isEnabled(),
+      getRequiredReferrals(),
       pool.query(
         `SELECT u.status, u."createdAt",
                 (SELECT COUNT(DISTINCT r.id) FROM "User" r WHERE r."referredById" = u.id AND NOT r."isTestUser"
@@ -476,10 +477,10 @@ async function getMyReferralHoldStatus(req, res) {
       ruleApplies,
       isOnHold: row.status === 'HOLD',
       activatedReferrals,
-      requiredReferrals: REQUIRED_ACTIVATED_REFERRALS,
+      requiredReferrals,
       windowDays: HOLD_WINDOW_DAYS,
       daysRemaining,
-      met: activatedReferrals >= REQUIRED_ACTIVATED_REFERRALS,
+      met: activatedReferrals >= requiredReferrals,
     });
   } catch (err) {
     console.error('getMyReferralHoldStatus error:', err);
@@ -491,10 +492,11 @@ async function getMyReferralHoldStatus(req, res) {
 // enabled, and every user's progress against it.
 async function adminGetReferralHoldOverview(req, res) {
   try {
-    const { isEnabled, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, REQUIRED_ACTIVATED_REFERRALS } = require('../jobs/referralHoldJob');
+    const { isEnabled, getRequiredReferrals, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS } = require('../jobs/referralHoldJob');
 
-    const [enabled, usersRes] = await Promise.all([
+    const [enabled, requiredReferrals, usersRes] = await Promise.all([
       isEnabled(),
+      getRequiredReferrals(),
       pool.query(
         `SELECT u.id, u.name, u.email, u.status, u."createdAt",
                 (SELECT COUNT(*) FROM "User" r WHERE r."referredById" = u.id AND NOT r."isTestUser") as "totalReferrals",
@@ -510,7 +512,7 @@ async function adminGetReferralHoldOverview(req, res) {
       enabled,
       ruleStartDate: HOLD_RULE_START_DATE,
       windowDays: HOLD_WINDOW_DAYS,
-      requiredReferrals: REQUIRED_ACTIVATED_REFERRALS,
+      requiredReferrals,
       users: usersRes.rows,
     });
   } catch (err) {

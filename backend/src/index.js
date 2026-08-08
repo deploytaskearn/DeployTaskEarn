@@ -516,6 +516,7 @@ async function runMigrations() {
       ['site_name', 'TaskEarn'],
       ['site_logo', '/uploads/taskearn-logo-dark.svg'],
       ['referral_hold_enabled', 'true'],
+      ['referral_hold_required_count', '3'],
     ];
     for (const [k, v] of defaultSettings) {
       await pool.query(

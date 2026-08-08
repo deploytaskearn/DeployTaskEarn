@@ -62,6 +62,9 @@ export default function ReferralsPage() {
   const [holdData, setHoldData] = useState<HoldOverview | null>(null);
   const [holdLoading, setHoldLoading] = useState(true);
   const [togglingHold, setTogglingHold] = useState(false);
+  const [requiredInput, setRequiredInput] = useState("");
+  const [savingRequired, setSavingRequired] = useState(false);
+  const [savedRequired, setSavedRequired] = useState(false);
 
   // Link modal state (for "registered" tab rows)
   const [linkModal, setLinkModal] = useState<RegisteredRow | null>(null);
@@ -114,8 +117,23 @@ export default function ReferralsPage() {
     try {
       const r = await api.get<HoldOverview>("/plans/admin/referral-hold/overview");
       setHoldData(r.data);
+      setRequiredInput(String(r.data.requiredReferrals));
     } finally {
       setHoldLoading(false);
+    }
+  }
+
+  async function saveRequiredReferrals() {
+    const n = parseInt(requiredInput, 10);
+    if (!Number.isInteger(n) || n <= 0) return;
+    setSavingRequired(true);
+    try {
+      await api.post("/cms/admin/settings", { key: "referral_hold_required_count", value: String(n) });
+      setHoldData((prev) => (prev ? { ...prev, requiredReferrals: n } : prev));
+      setSavedRequired(true);
+      setTimeout(() => setSavedRequired(false), 2000);
+    } finally {
+      setSavingRequired(false);
     }
   }
 
@@ -273,7 +291,7 @@ export default function ReferralsPage() {
                 <Lock size={18} style={{ color: holdData.enabled ? "var(--color-accent)" : "rgba(245,242,234,0.4)" }} />
                 <div>
                   <div className="text-sm font-semibold" style={{ color: "var(--color-surface)" }}>
-                    3 referrals in {holdData.windowDays} days
+                    {holdData.requiredReferrals} referrals in {holdData.windowDays} days
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: "rgba(245,242,234,0.45)" }}>
                     New users (signed up on/after {new Date(holdData.ruleStartDate).toLocaleDateString()}) who don&apos;t land {holdData.requiredReferrals} referrals with an activated plan within {holdData.windowDays} days get put on hold automatically.
@@ -290,6 +308,17 @@ export default function ReferralsPage() {
                 {holdData.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                 {togglingHold ? "…" : holdData.enabled ? "Enabled" : "Disabled"}
               </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="text-xs" style={{ color: "rgba(245,242,234,0.5)" }}>Required referrals</label>
+                <input type="number" min="1" value={requiredInput} onChange={(e) => setRequiredInput(e.target.value)}
+                  className="w-16 px-2 py-2 rounded-lg text-sm text-center outline-none"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--color-surface)" }} />
+                <button onClick={saveRequiredReferrals} disabled={savingRequired || parseInt(requiredInput, 10) === holdData.requiredReferrals}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: savedRequired ? "rgba(0,200,117,0.25)" : "var(--color-accent)", color: "#000" }}>
+                  {savingRequired ? "…" : savedRequired ? "Saved ✓" : "Save"}
+                </button>
+              </div>
             </div>
 
             {holdData.users.length === 0 ? (

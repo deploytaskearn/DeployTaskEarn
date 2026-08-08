@@ -4,7 +4,7 @@ const pool = require('../db/pool');
 // are grandfathered in and never auto-held by this rule.
 const HOLD_RULE_START_DATE = '2026-08-04T00:00:00Z';
 const HOLD_WINDOW_DAYS = 20;
-const REQUIRED_ACTIVATED_REFERRALS = 3;
+const DEFAULT_REQUIRED_ACTIVATED_REFERRALS = 3;
 
 // A referral counts as "activated" once the referred user has ever bought
 // any plan (any UserPlan row, regardless of its current status). The
@@ -26,6 +26,17 @@ async function isEnabled() {
   }
 }
 
+// Admin-configurable via the 'referral_hold_required_count' site setting.
+async function getRequiredReferrals() {
+  try {
+    const r = await pool.query(`SELECT value FROM "SiteSetting" WHERE key='referral_hold_required_count' LIMIT 1`);
+    const n = r.rows.length ? parseInt(r.rows[0].value, 10) : NaN;
+    return Number.isInteger(n) && n > 0 ? n : DEFAULT_REQUIRED_ACTIVATED_REFERRALS;
+  } catch {
+    return DEFAULT_REQUIRED_ACTIVATED_REFERRALS;
+  }
+}
+
 /**
  * Daily check: users past their first 20 days without 3 referrals who
  * activated a plan get put on HOLD (restricted, but can still log in).
@@ -35,6 +46,7 @@ async function isEnabled() {
 async function runReferralHoldCheck() {
   try {
     if (!(await isEnabled())) return;
+    const requiredReferrals = await getRequiredReferrals();
 
     const held = await pool.query(
       `UPDATE "User" u SET status = 'HOLD', "updatedAt" = now()
@@ -44,10 +56,10 @@ async function runReferralHoldCheck() {
          AND u."createdAt" <= now() - interval '${HOLD_WINDOW_DAYS} days'
          AND ${ACTIVATED_REFERRAL_COUNT_SQL} < $2
        RETURNING u.id`,
-      [HOLD_RULE_START_DATE, REQUIRED_ACTIVATED_REFERRALS]
+      [HOLD_RULE_START_DATE, requiredReferrals]
     );
     if (held.rows.length) {
-      console.log(`referralHoldJob: put ${held.rows.length} user(s) on HOLD (missed 3-referral target)`);
+      console.log(`referralHoldJob: put ${held.rows.length} user(s) on HOLD (missed ${requiredReferrals}-referral target)`);
     }
 
     const released = await pool.query(
@@ -55,7 +67,7 @@ async function runReferralHoldCheck() {
        WHERE u.status = 'HOLD'
          AND ${ACTIVATED_REFERRAL_COUNT_SQL} >= $1
        RETURNING u.id`,
-      [REQUIRED_ACTIVATED_REFERRALS]
+      [requiredReferrals]
     );
     if (released.rows.length) {
       console.log(`referralHoldJob: released ${released.rows.length} user(s) from HOLD`);
@@ -65,4 +77,4 @@ async function runReferralHoldCheck() {
   }
 }
 
-module.exports = { runReferralHoldCheck, isEnabled, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, REQUIRED_ACTIVATED_REFERRALS };
+module.exports = { runReferralHoldCheck, isEnabled, getRequiredReferrals, HOLD_RULE_START_DATE, HOLD_WINDOW_DAYS, DEFAULT_REQUIRED_ACTIVATED_REFERRALS };
