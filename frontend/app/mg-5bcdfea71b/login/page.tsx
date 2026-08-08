@@ -26,8 +26,9 @@ export default function AdminLoginPage() {
     try {
       await login(email, password);
       router.replace("/mg-5bcdfea71b");
-    } catch {
-      setError("Invalid credentials.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg || "Could not reach the server. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
