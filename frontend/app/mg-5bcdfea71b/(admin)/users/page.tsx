@@ -69,7 +69,7 @@ export default function AdminUsersPage() {
   }
 
   async function toggleTestUser(u: AdminUserRow) {
-    if (!u.isTestUser && !confirm(`Make ${u.name} the test account? Their deposits/withdrawals/tasks will auto-approve instantly, and any other user currently marked as test will be un-marked.`)) return;
+    if (!u.isTestUser && !confirm(`Make ${u.name} a test account? Their deposits/withdrawals/tasks will auto-approve instantly and won't count toward real stats.`)) return;
     setProcessingId(u.id);
     try {
       await api.patch(`/admin/users/${u.id}/test-user`, { isTestUser: !u.isTestUser });
@@ -199,7 +199,7 @@ export default function AdminUsersPage() {
                   <button
                     disabled={processingId === u.id}
                     onClick={() => toggleTestUser(u)}
-                    title={u.isTestUser ? "Unmark as test user" : "Mark as the test user (only one at a time)"}
+                    title={u.isTestUser ? "Unmark as test user" : "Mark as a test user"}
                     className="p-2 rounded-sm"
                     style={{ color: u.isTestUser ? "#7EB8FF" : "rgba(245,242,234,0.35)" }}
                   >

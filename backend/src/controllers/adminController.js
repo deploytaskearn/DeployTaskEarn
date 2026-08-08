@@ -56,21 +56,18 @@ async function listUsers(req, res) {
   }
 }
 
-// Designates a single user as the test account: their deposits/withdrawals/
-// task submissions auto-approve instantly and their activity never counts
+// Designates a user as a test account: their deposits/withdrawals/task
+// submissions auto-approve instantly and their activity never counts
 // toward real business stats, plan slot limits, or referral bonuses/hold
 // checks (see depositController/withdrawalController/taskController/
-// planController/referralHoldJob). Only one test user exists at a time —
-// setting a new one clears the flag from any previous holder.
+// planController/referralHoldJob). Any number of users can be test
+// accounts at the same time — this just flips the flag on this one.
 async function setTestUser(req, res) {
   try {
     const { id } = req.params;
     const { isTestUser } = req.body;
     if (typeof isTestUser !== 'boolean') {
       return res.status(400).json({ error: 'isTestUser must be true or false' });
-    }
-    if (isTestUser) {
-      await pool.query('UPDATE "User" SET "isTestUser" = false WHERE "isTestUser" = true AND id != $1', [id]);
     }
     const result = await pool.query(
       'UPDATE "User" SET "isTestUser" = $1, "updatedAt" = now() WHERE id = $2 RETURNING id, name, email, "isTestUser"',

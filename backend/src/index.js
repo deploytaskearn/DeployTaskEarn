@@ -412,7 +412,7 @@ async function runMigrations() {
       "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
       "updatedAt" TIMESTAMP NOT NULL DEFAULT now()
     )`,
-    // A single admin-designated account that can exercise every real flow
+    // Admin-designated account(s) that can exercise every real flow
     // (deposit, withdraw, tasks, plans) with instant auto-approval, without
     // its fake activity polluting real business stats or real users' wallets.
     // See depositController/withdrawalController/taskController/planController
