@@ -45,7 +45,8 @@ async function listTasks(req, res) {
           t."rewardAmount"
         ) as "rewardAmount",
         (
-          -- Plan tasks reset every night at midnight (Asia/Karachi); free tasks are one-time-ever.
+          -- Plan tasks reset every night at midnight (Asia/Karachi); free tasks are one-time-ever
+          -- unless rejected, in which case the user can fix their proof and resubmit.
           SELECT ts.status FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
             AND (pi."taskId" IS NULL OR ts."createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi')
@@ -56,6 +57,7 @@ async function listTasks(req, res) {
           SELECT 1 FROM "TaskSubmission" ts
           WHERE ts."taskId" = t.id AND ts."userId" = $1
             AND (pi."taskId" IS NULL OR ts."createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi')
+            AND (pi."taskId" IS NOT NULL OR ts.status != 'REJECTED')
         ) as "alreadySubmitted"
       FROM "Task" t
       LEFT JOIN "TaskCategory" tc ON tc.id = t."categoryId"
@@ -118,11 +120,14 @@ async function submitTask(req, res) {
 
     const isPlanTask = planLinks.rows.length > 0;
 
+    // A rejected free-task submission doesn't permanently block the task —
+    // only a PENDING (awaiting review) or APPROVED (already paid) one does,
+    // so a user can fix their proof and try again after a rejection.
     const existing = await pool.query(
       isPlanTask
         ? `SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2
            AND "createdAt" >= date_trunc('day', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi'`
-        : `SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2`,
+        : `SELECT 1 FROM "TaskSubmission" WHERE "taskId" = $1 AND "userId" = $2 AND status != 'REJECTED'`,
       [taskId, userId]
     );
     if (existing.rows.length > 0) {

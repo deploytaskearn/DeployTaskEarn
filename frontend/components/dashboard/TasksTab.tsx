@@ -349,9 +349,19 @@ function TaskCard({
           )}
         </div>
       ) : status === "REJECTED" ? (
-        <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(232,99,58,0.1)", border: "1px solid rgba(232,99,58,0.25)" }}>
-          <span className="text-sm font-bold" style={{ color: "#E8633A" }}>Submission rejected</span>
-        </div>
+        <>
+          <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(232,99,58,0.1)", border: "1px solid rgba(232,99,58,0.25)" }}>
+            <span className="text-sm font-bold" style={{ color: "#E8633A" }}>Submission rejected</span>
+          </div>
+          <button
+            onClick={onComplete}
+            disabled={submitting}
+            className="inline-flex items-center justify-center gap-2 text-sm font-bold px-4 py-2.5 rounded-lg disabled:opacity-50"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+          >
+            <Upload size={15} /> Try Again
+          </button>
+        </>
       ) : status === "PENDING" ? (
         <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg" style={{ background: "rgba(244,200,66,0.1)", color: "#F4C842" }}>
           <Clock size={15} /> Pending admin review
